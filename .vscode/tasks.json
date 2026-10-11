@@ -1,0 +1,40 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Lost & Found: Set up environment",
+      "type": "npm",
+      "script": "setup:env",
+      "problemMatcher": []
+    },
+    {
+      "label": "Lost & Found: Build local",
+      "type": "npm",
+      "script": "build:local",
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Lost & Found: Start local",
+      "type": "npm",
+      "script": "start",
+      "dependsOn": ["Lost & Found: Set up environment", "Lost & Found: Build local"],
+      "dependsOrder": "sequence",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    },
+    {
+      "label": "Lost & Found: Test",
+      "type": "npm",
+      "script": "test",
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Lost & Found: Typecheck",
+      "type": "npm",
+      "script": "typecheck",
+      "problemMatcher": ["$tsc"]
+    }
+  ]
+}

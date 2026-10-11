@@ -1,0 +1,2 @@
+CREATE UNIQUE INDEX `one_approved_return` ON `claims` (`reportId`) WHERE "claims"."status" IN ('Approved','Returned');--> statement-breakpoint
+CREATE UNIQUE INDEX `one_active_claim` ON `claims` (`reportId`,`claimant`) WHERE "claims"."status" IN ('Pending','Approved','Returned');
