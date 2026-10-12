@@ -1,0 +1,164 @@
+.banner {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 22px;
+    max-width: 1160px;
+    margin: 18px auto 46px;
+    padding: 30px;
+    border: 1px solid var(--line);
+    border-radius: 17px;
+    background: var(--mint);
+}
+
+.icon {
+    display: grid;
+    place-items: center;
+    width: 58px;
+    height: 70px;
+    border-radius: 15px;
+    background: var(--surface);
+    color: var(--teal);
+    transform: rotate(-6deg);
+}
+
+.eyebrow {
+    display: block;
+    margin-bottom: 9px;
+    color: var(--teal);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+}
+
+.copy h2 {
+    margin: 0 0 8px;
+    font-size: 26px;
+    line-height: 1.15;
+}
+
+.copy p {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+.action {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 9px;
+}
+
+.installButton {
+    white-space: nowrap;
+}
+
+.caption {
+    color: var(--muted);
+    font-size: 10px;
+}
+
+.notice {
+    grid-column: 2 / -1;
+    margin: -5px 0 0;
+    font-size: 12px;
+}
+
+.dialog:global(.modal) {
+    width: 560px;
+}
+
+.intro {
+    margin: 0 0 20px;
+    font-size: 13px;
+    line-height: 1.7;
+}
+
+.instructions {
+    display: grid;
+    gap: 14px;
+}
+
+.instructions section {
+    padding: 17px 18px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--bg);
+}
+
+.instructions h3 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 10px;
+    font-size: 19px;
+}
+
+.instructions h3 svg {
+    color: var(--teal);
+    flex-shrink: 0;
+}
+
+.instructions ol {
+    margin: 0;
+    padding-left: 20px;
+    list-style-type: decimal;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.75;
+}
+
+.instructions li + li {
+    margin-top: 5px;
+}
+
+.instructions strong {
+    color: var(--ink);
+}
+
+.browserNote {
+    margin: 16px 0;
+    font-size: 11px;
+    line-height: 1.7;
+}
+
+.connectionNote {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    margin: 17px 0 22px;
+    padding: 12px 14px;
+    border-radius: 8px;
+    background: var(--mint);
+    color: var(--teal);
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+.connectionNote svg {
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+@media (max-width: 1240px) {
+    .banner { margin-inline: 40px; }
+}
+
+@media (max-width: 850px) {
+    .banner { margin-inline: 30px; gap: 16px; padding: 24px; }
+    .copy h2 { font-size: 23px; }
+    .icon { width: 47px; height: 60px; }
+}
+
+@media (max-width: 620px) {
+    .banner { grid-template-columns: auto minmax(0, 1fr); margin: 10px 21px 32px; padding: 22px 19px; gap: 17px 15px; }
+    .copy h2 { font-size: 24px; }
+    .copy p { font-size: 11px; }
+    .eyebrow { font-size: 7px; letter-spacing: 1.1px; }
+    .action { grid-column: 1 / -1; flex-direction: row; justify-content: space-between; gap: 10px; }
+    .installButton { font-size: 12px; padding: 12px 15px; }
+    .caption { font-size: 9px; }
+    .notice { grid-column: 1 / -1; font-size: 11px; }
+    .instructions section { padding: 14px; }
+}

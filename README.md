@@ -31,6 +31,7 @@ The **Source Control** view shows changes and commits. Local configuration (`.de
 npm run typecheck       # TypeScript validation
 npm test                # Real handlers + SQLite + image storage integration tests
 npm run test:http       # Real HTTP server checks; requires local socket access
+npm run test:pwa        # Installation assets and offline privacy behavior
 npm run build:local     # Browser bundle and portable Node API server
 npm start               # Start the portable production build
 npm run build           # Build the Cloudflare/Vinext deployment
@@ -39,6 +40,17 @@ npm run seed            # Regenerate bundled sample illustrations and seed data
 ```
 
 The ordinary Cloudflare development command remains `npm run dev` and built Worker preview is `npm run start:worker`. The portable runner is the recommended path on this Windows machine. Rebuild with `npm run build:local` after changing code, then restart.
+
+### Install on a phone
+
+Open the deployed HTTPS website (or scan its QR code) in the phone's browser, then select **Install app** near the bottom of the page. When supported, this opens the browser's installation prompt. Otherwise the app shows installation instructions:
+
+- **Android:** open the site in Chrome, choose the three-dot menu, then **Add to Home screen** or **Install app**, and confirm.
+- **iPhone/iPad:** open the site in Safari, choose **Share → Add to Home Screen**, enable **Open as Web App** if shown, then choose **Add**.
+
+The app has its own home-screen icon and opens in a standalone window on supporting browsers. It is an installable web app (PWA); no app-store account or APK download is needed. Browser support and menu wording vary. The Install app section is hidden when the app is already running in standalone mode.
+
+An internet connection is required for accounts, reports, photos and messages. The service worker stores only a generic reconnect page. It does not cache API responses, private conversations, uploaded photos or the live application pages. Installing the app does not provide server backups or change a hosting plan's data-retention limits. New service-worker versions activate normally after older app windows close, without forcibly reloading forms.
 
 ### Persistent data and configuration
 

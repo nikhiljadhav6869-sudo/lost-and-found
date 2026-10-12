@@ -20,7 +20,16 @@ Administrator access requires an operator to configure an existing account ID. T
 The README documents production considerations, including email verification/reset, upload retention, server-side image decoding, polling, matching scale, and cancellation of an already-approved arrangement. This is a working functional implementation with passing API checks; it has not undergone an independent security audit or complete browser acceptance testing.
 
 ## Publication
-The Site was registered privately, but no version was published. A follow-up attempt passed credential input after a Git permission grant, then failed in Git network resolution. Network diagnostics later recovered, but the next credential handoff was again rejected by automatic approval review because sandbox approval is disabled. No live website URL is claimed. The complete local source and build commands remain available.
+The original Sites project was registered privately, but no version was published there. The user subsequently published the source to GitHub and deployed the Node build on Render at https://lost-and-found-yzfl.onrender.com/. On 2026-10-12 the public homepage loaded successfully, with no browser console errors observed. This smoke check does not establish that all account/report/claim workflows have passed production browser testing. The user was advised that Render Free loses SQLite data and uploads on restart, redeploy or idle shutdown.
+
+## Mobile installation update
+
+- Added a web app manifest, 192/512px installation icons, maskable and Apple home-screen icons, and metadata for both build targets.
+- Added an Install app section with browser install-prompt support and Android/iPhone instructions. Standalone app windows hide this section.
+- Added a service worker that caches only a generic reconnect page. API requests, uploaded photos, messages and live page responses are not cached. Installing the app does not make its data available offline or preserve server data.
+- TypeScript validation, the portable production build, and seven PWA asset/cache-behavior tests passed.
+- Added HTTP checks for the manifest MIME type, icon delivery, worker update headers, offline page and missing-icon response. These new HTTP checks and the browser preview could not run because automatic approval review reached its usage limit; no phone installation or native prompt verification is claimed.
+- This mobile installation update is prepared locally. GitHub publication and the corresponding Render deployment remain pending.
 
 ## Follow-up fixes
 
