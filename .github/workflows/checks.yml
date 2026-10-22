@@ -1,0 +1,22 @@
+name: Application checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --include=dev
+      - run: npm run typecheck
+      - run: npm run build:local
+      - run: npm test
+      - run: npm run test:http
+      - run: npm run test:pwa
+      - run: npm run test:upgrades
+      - run: npm run test:auth
+      - run: npm run test:storage

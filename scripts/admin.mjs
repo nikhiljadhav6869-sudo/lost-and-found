@@ -1,14 +1,24 @@
+import './load-env.mjs';
 import fs from 'node:fs';
-import path from 'node:path';
-import {DatabaseSync} from 'node:sqlite';
-const db=new DatabaseSync(path.resolve(process.env.DATA_DIR||'data','lost-found.sqlite'),{readOnly:true});
-const target=process.argv[2];
-if(!target||target==='list'){console.table(db.prepare('SELECT id,name,email FROM user ORDER BY createdAt').all());console.log('To grant local admin access: node scripts/admin.mjs ACCOUNT_ID');}
-else{
- if(!/^[a-zA-Z0-9_-]{1,100}$/.test(target)||!db.prepare('SELECT id FROM user WHERE id=?').get(target))throw new Error('Use an existing account ID from the list.');
- const file='.dev.vars';if(!fs.existsSync(file))throw new Error('Run npm run setup:env first.');
- let text=fs.readFileSync(file,'utf8');const line=text.split(/\r?\n/).find(l=>l.startsWith('ADMIN_USER_IDS='))||'ADMIN_USER_IDS=';
- const ids=new Set(line.slice(15).split(',').filter(Boolean));ids.add(target);text=text.includes(line)?text.replace(line,'ADMIN_USER_IDS='+[...ids].join(',')):text+'\nADMIN_USER_IDS='+target+'\n';
- fs.writeFileSync(file,text);console.log('Local admin access configured. Restart the server to apply.');
+const [command,value]=process.argv.slice(2);
+if(!['lookup','grant-local','verify'].includes(command)||!value)throw new Error('Usage: npm run admin -- lookup email | verify account-id | grant-local account-id');
+const {DB,storageMode}=await import('../local/storage.mjs');
+const user=await DB.prepare(command==='lookup'?'SELECT id,name,emailVerified FROM user WHERE lower(email)=lower(?)':'SELECT id,name,emailVerified FROM user WHERE id=?').bind(value).first();
+if(!user)throw new Error('No matching account. Register in the intended deployment first.');
+if(command==='lookup'){
+  console.log(JSON.stringify(user,null,2));
+  console.log('Confirm this is the intended verified account, then set its ID in Render ADMIN_USER_IDS.');
+}else if(command==='verify'){
+  const configured=(process.env.ADMIN_USER_IDS||'').split(',').map(x=>x.trim()).includes(user.id);
+  console.log(JSON.stringify({id:user.id,emailVerified:!!user.emailVerified,configuredAdmin:configured},null,2));
+  if(!configured||!user.emailVerified)process.exitCode=1;
+}else{
+  if(storageMode!=='local'||process.env.RENDER)throw new Error('Production admin access must be configured in the hosting environment.');
+  if(!user.emailVerified)throw new Error('Verify the account email before granting administrator access.');
+  if(!fs.existsSync('.dev.vars'))throw new Error('Run npm run setup:env first.');
+  const source=fs.readFileSync('.dev.vars','utf8');
+  const ids=new Set((process.env.ADMIN_USER_IDS||'').split(',').map(x=>x.trim()).filter(Boolean));ids.add(user.id);
+  const setting='ADMIN_USER_IDS='+[...ids].join(',');
+  fs.writeFileSync('.dev.vars',/^ADMIN_USER_IDS=.*$/m.test(source)?source.replace(/^ADMIN_USER_IDS=.*$/m,setting):source+'\n'+setting+'\n');
+  console.log('Local administrator configured. Restart the local server to apply.');
 }
-db.close();

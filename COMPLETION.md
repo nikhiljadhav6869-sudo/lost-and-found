@@ -29,7 +29,7 @@ The original Sites project was registered privately, but no version was publishe
 - Added a service worker that caches only a generic reconnect page. API requests, uploaded photos, messages and live page responses are not cached. Installing the app does not make its data available offline or preserve server data.
 - TypeScript validation, the portable production build, and seven PWA asset/cache-behavior tests passed.
 - Added HTTP checks for the manifest MIME type, icon delivery, worker update headers, offline page and missing-icon response. These new HTTP checks and the browser preview could not run because automatic approval review reached its usage limit; no phone installation or native prompt verification is claimed.
-- This mobile installation update is prepared locally. GitHub publication and the corresponding Render deployment remain pending.
+- The original mobile installation update (fafc181) was published to GitHub and deployed by Render Auto-Deploy, confirmed by the user’s deployment screenshot.
 
 ## Follow-up fixes
 
@@ -37,3 +37,11 @@ The original Sites project was registered privately, but no version was publishe
 - Either participant can withdraw their Happy Returns consent even if blocked or if a moderator has hidden the listing. New opt-ins remain restricted.
 - The dashboard exposes deletion for closed reports.
 - `esbuild` is now an explicit pinned development dependency, and the package lock agrees with the Node 24 requirement.
+
+## Production-readiness update — 2026-10-22
+
+Implemented external libSQL/private Supabase storage, Brevo verification/reset, strict >75 similarity alerts to both owners with persistent deduplication, strong-match highlighting, cancellation of approved returns, admin operations status, guarded orphan cleanup, and encrypted backups with local restore verification. Setup is in DEPLOYMENT.md.
+
+Local tests confirmed the original workflows, seven PWA behaviors, all five real HTTP groups, new matching/cancellation/cleanup/backup checks, real libSQL transactions with an isolated database, and account verification/reset with an in-process email transport. Live provider credentials, inbox delivery, production admin setup and native installation on real phones are not yet verified. This upgrade has not been deployed to Render.
+
+The final browser preview was blocked by the browser URL security policy. No workaround was attempted. Automated loopback HTTP verification passed with approved network access; browser/mobile acceptance remains an explicit release check. The snapshot metadata was reconciled and Drizzle reports no outstanding schema changes.

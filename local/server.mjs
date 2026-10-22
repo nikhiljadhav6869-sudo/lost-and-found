@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
 import {Readable} from 'node:stream';
+import {clientIp} from './client-ip.mjs';
+import {drainAuthEmails} from '../lib/auth-email.ts';
 import * as api from '../app/api/[...path]/route.ts';
 import * as auth from '../app/api/auth/[...all]/route.ts';
 const port=Number(process.env.PORT||3000),host=process.env.HOST||'127.0.0.1';
@@ -14,7 +16,7 @@ export const server=http.createServer(async(req,res)=>{
   if(url.pathname.startsWith('/api/')){
    const handler=(url.pathname.startsWith('/api/auth/')?auth:api)[req.method];
    if(!handler){res.writeHead(405);res.end();return;}
-   const headers=new Headers();for(const [k,v] of Object.entries(req.headers)){if(v&&k!=='cf-connecting-ip')headers.set(k,Array.isArray(v)?v.join(','):v);}headers.set('cf-connecting-ip',req.socket.remoteAddress||'local');
+   const headers=new Headers();for(const [k,v] of Object.entries(req.headers)){if(v&&k!=='cf-connecting-ip')headers.set(k,Array.isArray(v)?v.join(','):v);}headers.set('cf-connecting-ip',clientIp(req));
    const request=new Request(url,{method:req.method,headers,...(!['GET','HEAD'].includes(req.method)?{body:Readable.toWeb(req),duplex:'half'}:{})});
    const response=await handler(request);res.statusCode=response.status;response.headers.forEach((v,k)=>{if(k!=='set-cookie')res.setHeader(k,v);});const cookies=response.headers.getSetCookie();if(cookies.length)res.setHeader('Set-Cookie',cookies);
    res.setHeader('X-Frame-Options','SAMEORIGIN');res.setHeader('Referrer-Policy','same-origin');if(response.body)Readable.fromWeb(response.body).pipe(res);else res.end();return;
@@ -30,4 +32,5 @@ export const server=http.createServer(async(req,res)=>{
  }catch(error){console.error('Request failed:',error.message);if(!res.headersSent)res.writeHead(500,{'Content-Type':'application/json'});res.end(JSON.stringify({error:'The server could not complete the request.'}));}
 });
 server.listen(port,host,()=>console.log(`Lost & Found running at ${publicOrigin}`));
-process.on('SIGTERM',()=>server.close(()=>process.exit(0)));process.on('SIGINT',()=>server.close(()=>process.exit(0)));
+const shutdown=()=>server.close(async()=>{await drainAuthEmails();process.exit(0);});
+process.on('SIGTERM',shutdown);process.on('SIGINT',shutdown);

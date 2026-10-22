@@ -58,3 +58,7 @@ next-env.d.ts
 /outputs/
 /work/
 /data/
+
+# Private operator exports
+/backups/
+*.lfbackup

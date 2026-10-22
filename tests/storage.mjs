@@ -1,0 +1,38 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import {createClient} from '@libsql/client';
+import {createLibsqlD1,migrateLibsql} from '../local/libsql-d1.mjs';
+import {createSupabaseBucket} from '../local/supabase-bucket.mjs';
+import {storageConfiguration} from '../local/storage-config.mjs';
+import {clientIp} from '../local/client-ip.mjs';
+const settings={STORAGE_MODE:'remote',TURSO_DATABASE_URL:'libsql://example.turso.io',TURSO_AUTH_TOKEN:'test',SUPABASE_URL:'https://example.supabase.co',SUPABASE_SECRET_KEY:'sb_secret_test',SUPABASE_STORAGE_BUCKET:'photos'};
+assert.throws(()=>storageConfiguration({RENDER:'true'}),/external storage/);
+assert.throws(()=>storageConfiguration({...settings,TURSO_AUTH_TOKEN:''}),/Missing/);
+assert.throws(()=>storageConfiguration({...settings,SUPABASE_URL:'http://example.com'}),/HTTPS/);
+assert.throws(()=>storageConfiguration({...settings,SUPABASE_SECRET_KEY:'sb_publishable_test'}),/secret key/);
+assert.equal(storageConfiguration(settings).mode,'remote');
+console.log('PASS incomplete and unsafe remote settings fail closed');
+const client=createClient({url:'file::memory:'});const db=createLibsqlD1(client);
+try{
+  const migrations=fs.readdirSync('drizzle').filter(x=>x.endsWith('.sql')).sort().map(name=>({name,sql:fs.readFileSync(path.join('drizzle',name),'utf8')}));
+  await migrateLibsql(client,migrations);await migrateLibsql(client,migrations);
+  assert.equal((await db.prepare('SELECT count(*) AS n FROM local_migrations').first()).n,migrations.length);
+  await assert.rejects(()=>db.prepare('INSERT INTO claims(id,reportId,claimant,evidence,created) VALUES(?,?,?,?,?)').bind('invalid','missing','user','evidence',0).run());
+  await db.prepare('INSERT INTO limits(key,count) VALUES(?,?)').bind('test',1).run();
+  await assert.rejects(()=>db.batch([db.prepare('UPDATE limits SET count=2 WHERE key=?').bind('test'),db.prepare('INSERT INTO limits(key,count) VALUES(?,?)').bind('test',3)]));
+  assert.equal((await db.prepare('SELECT count FROM limits WHERE key=?').bind('test').first()).count,1);
+  assert.deepEqual(await db.prepare('SELECT count FROM limits').raw(),[[1]]);
+  assert.equal((await db.prepare('UPDATE limits SET count=?').bind(4).run()).meta.changes,1);
+  console.log('PASS real libSQL migrations, repeat startup, result shapes and transactional rollback');
+}finally{client.close();}
+const config=storageConfiguration(settings);const calls=[];
+const storage=createSupabaseBucket(config,async(url,options)=>{calls.push({url,options});if(url.includes('/bucket/'))return Response.json({public:false});if(options.method==='POST'||options.method==='DELETE')return Response.json({ok:true});return new Response(new Uint8Array([1,2,3]));});
+await storage.verifyPrivate();const image='abcd-abcd.png';await storage.put(image,new Uint8Array([1,2,3]));assert.deepEqual([...new Uint8Array(await new Response((await storage.get(image)).body).arrayBuffer())],[1,2,3]);await storage.delete(image);
+assert.ok(calls.every(c=>c.options.headers.apikey==='sb_secret_test'&&!c.options.headers.Authorization));assert.ok(calls.every(c=>!c.url.includes('/public/')&&!c.url.includes('sb_secret_')));
+await assert.rejects(()=>createSupabaseBucket(config,async()=>Response.json({public:true})).verifyPrivate(),/private/);
+await assert.rejects(()=>storage.get('../secret.png'),/Invalid storage key/);
+await assert.rejects(()=>createSupabaseBucket(config,async()=>new Response('outage',{status:503})).get(image),/failed/);
+assert.equal(clientIp({headers:{'x-forwarded-for':'192.0.2.5, 10.0.0.1'},socket:{remoteAddress:'127.0.0.1'}},true),'192.0.2.5');
+assert.equal(clientIp({headers:{'x-forwarded-for':'192.0.2.5'},socket:{remoteAddress:'127.0.0.1'}},false),'127.0.0.1');
+console.log('PASS private-bucket HTTP contract, server-only credentials, outages and trusted-proxy scope');

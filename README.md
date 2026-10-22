@@ -2,6 +2,10 @@
 
 A full-stack community lost-and-found application, with a responsive teal/navy/coral interface, persistent SQLite records and images, private ownership claims, explainable matches, and mutually confirmed returns.
 
+## Production setup update
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for Render Free with an external Turso database, private Supabase photos, Brevo account email, administrator setup, encrypted backups and cleanup. Configure the external services before deploying this update.
+
 ## Run locally
 
 Use **Node.js 24 or later** and npm. From this directory:
@@ -69,15 +73,15 @@ Back up the SQLite database with SQLite's backup tooling (or stop the server bef
 
 ### Administrator setup
 
-Register an ordinary account first, then stop the local server and run:
+Register and verify an ordinary account first. For a local server, run:
 
 ```sh
-node scripts/admin.mjs list
-node scripts/admin.mjs ACCOUNT_ID_FROM_THE_LIST
+npm run admin -- lookup your-admin-email@example.com
+npm run admin -- grant-local VERIFIED_ACCOUNT_ID
 npm start
 ```
 
-The account now sees **Moderation**. Report a listing from another account to populate the queue. The server verifies the configured account ID on every moderation request. Admin access is never assigned by an unverified email address or a hidden UI button. There are no default passwords or pre-created privileged accounts.
+Restart the local server after configuring the account ID. For Render, set `ADMIN_USER_IDS` in its environment instead. The account then sees **Moderation**. Report a listing from another account to populate the queue. The server verifies the configured account ID on every moderation request. Admin access is never assigned by an unverified email address or a hidden UI button. There are no default passwords or pre-created privileged accounts.
 
 ## Product workflows
 
@@ -106,7 +110,7 @@ Each open report is compared against up to 1,000 recent open reports of the oppo
 | Found date within 30 days after lost date | 10 |
 | Shared approximate-location token | 10 |
 
-Text overlap divides shared tokens by the smaller token-set size. Common words and punctuation are removed. Scores of at least 40 produce up to eight suggestions, ordered by score. Suggestions are computed from current data when a detail page opens and when a report is created or updated; creation/updates also persist notifications for the affected owners. Reasons explain every contributing signal. Shared location text is **not a measured physical distance**.
+Text overlap divides shared tokens by the smaller token-set size. Common words and punctuation are removed. Scores of at least 40 produce up to eight suggestions, ordered by score. Suggestions are computed from current data when a detail page opens and when a report is created or updated; creation/updates notify both owners only when similarity is strictly above 75%, once per report pair. Exactly 75% does not notify. Strong matches are highlighted, while ordinary suggestions still appear from 40. Self-matches, demo activity, hidden/closed reports and blocked participants do not generate strong-match alerts. Reasons explain every contributing signal. Shared location text is **not a measured physical distance**.
 
 These are relevance indicators, not calibrated probabilities or proof of ownership. Photo comparison is manual and side by side; no AI image recognition is claimed. See `lib/matching.ts`.
 
@@ -158,4 +162,4 @@ Apply each migration once. The portable runner tracks migrations itself. Never e
 
 ## Operational limitations
 
-No email verification, self-service password reset, external location service, image recognition, push/email notifications or malware scanning is configured. Messaging uses polling. Photos receive structural validation and metadata stripping, not server-side visual decoding; the browser performs actual decoding/re-encoding. Animated WebP is rejected. Orphaned uploads and old rate-limit rows are retained; add a retention/cleanup policy before prolonged public operation. An approved arrangement currently cannot be cancelled through the UI; pending claims can be withdrawn or rejected. Large deployments should move matching to indexed/background processing and notifications to a durable queue. Content filtering is advisory and cannot detect every private detail. These limits are explicit rather than disguised as working integrations.
+Email verification and self-service password reset use a configured Brevo sender; without both mail settings, these email features remain unavailable. No external location service, image recognition, push notifications, match emails or malware scanning is configured. Messaging uses polling. Photos receive structural validation and metadata stripping, not server-side visual decoding; the browser performs actual decoding/re-encoding. Animated WebP is rejected. The maintenance command previews or removes unattached uploads older than seven days and rate-limit records older than one day. Run it regularly from a trusted operator environment; no external scheduler is provisioned. Either participant can cancel an approved arrangement before both confirmations, including while blocked or moderated. Its conversation remains in history and other pending claims survive. Completed returns cannot be cancelled. Large deployments should move matching to indexed/background processing and notifications to a durable queue. Content filtering is advisory and cannot detect every private detail. These limits are explicit rather than disguised as working integrations.

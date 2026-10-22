@@ -1,10 +1,11 @@
 import { env } from 'cloudflare:workers';
-import { auth } from '../../../lib/auth';
-import { match, categories, type Matchable } from '../../../lib/matching';
+import { auth, authCapabilities } from '../../../lib/auth';
+import { match, categories, isStrongMatch, type Matchable } from '../../../lib/matching';
 import { cleanImage } from '../../../lib/images';
 import { z } from 'zod';
 import { ensureDemo } from '../../../lib/demo';
 import { boundedBody } from '../../../lib/body';
+import { maintain } from '../../../lib/maintenance';
 export const dynamic = 'force-dynamic';
 type Row = Record<string, any>;
 const db = () => env.DB!;
@@ -22,7 +23,43 @@ async function current(req: Request) { const s = await auth(new URL(req.url).ori
 const publicReport = (r: Row): Row => { const { privateDetails, ...safe } = r; return { ...safe, images: JSON.parse(r.images) }; };
 async function blocked(a: string, b: string) { return !!await one('SELECT 1 FROM blocks WHERE (userId=? AND blocked=?) OR (userId=? AND blocked=?)', a, b, b, a); }
 const reportSchema = z.object({ type: z.enum(['lost', 'found']), title: z.string().trim().min(3).max(100), category: z.string().refine(x => categories.includes(x)), description: z.string().trim().min(10).max(2000), colour: z.string().trim().max(50), brand: z.string().trim().max(60), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(x => Number.isFinite(Date.parse(x)) && x <= new Date().toISOString().slice(0, 10)), location: z.string().trim().min(2).max(100), privateDetails: z.string().trim().max(2000), images: z.array(z.string().max(150)).max(5) });
-async function suggestions(r: Row) { const candidates = await all('SELECT * FROM reports WHERE type!=? AND hidden=0 AND demo=? AND status IN (\'Open\',\'Claim Pending\') ORDER BY created DESC LIMIT 1000', r.type, r.demo); return candidates.map(b => ({ report: publicReport(b), ...match(r as Matchable, b as Matchable) })).filter(m => m.score >= 40).sort((a, b) => b.score - a.score).slice(0, 8); }
+async function matchingReports(r: Row) {
+    if (r.hidden || !['Open', 'Claim Pending'].includes(r.status)) return [];
+    const candidates = await all(`SELECT * FROM reports candidate
+        WHERE type!=? AND owner!=? AND hidden=0 AND demo=? AND status IN ('Open','Claim Pending')
+        AND NOT EXISTS(SELECT 1 FROM blocks WHERE (userId=? AND blocked=candidate.owner) OR (userId=candidate.owner AND blocked=?))
+        ORDER BY created DESC LIMIT 1000`, r.type, r.owner, r.demo, r.owner, r.owner);
+    return candidates.map(b => {
+        const result = match(r as Matchable, b as Matchable);
+        return { report: publicReport(b), ...result, strongMatch: isStrongMatch(result.score) };
+    }).filter(m => m.score >= 40).sort((a, b) => b.score - a.score);
+}
+async function suggestions(r: Row) { return (await matchingReports(r)).slice(0, 8); }
+
+// Unique report pairs and event IDs make notifications idempotent even when
+// both reports are edited at once. Each batch inserts both recipients or none.
+async function notifyStrongMatches(r: Row) {
+    if (r.demo || r.hidden || !['Open', 'Claim Pending'].includes(r.status)) return;
+    const snapshots = ['type', 'owner', 'category', 'title', 'description', 'colour', 'brand', 'date', 'location'];
+    for (const m of (await matchingReports(r)).filter(m => m.strongMatch)) {
+        const other = m.report, eventId = id(), created = now();
+        const [reportA, reportB] = [r.id, other.id].sort();
+        const snapshotGuard = snapshots.map(field => `a.${field}=? AND b.${field}=?`).join(' AND ');
+        const snapshotValues = snapshots.flatMap(field => [r[field], other[field]]);
+        const reserve = db().prepare(`INSERT INTO match_alerts(id,reportA,reportB,score,created)
+            SELECT ?,?,?,?,? WHERE EXISTS(SELECT 1 FROM reports a JOIN reports b ON b.id=?
+                WHERE a.id=? AND a.owner!=b.owner AND a.type!=b.type
+                AND a.hidden=0 AND b.hidden=0 AND a.demo=0 AND b.demo=0
+                AND a.status IN ('Open','Claim Pending') AND b.status IN ('Open','Claim Pending')
+                AND NOT EXISTS(SELECT 1 FROM blocks WHERE (userId=a.owner AND blocked=b.owner) OR (userId=b.owner AND blocked=a.owner))
+                AND ${snapshotGuard}) ON CONFLICT(reportA,reportB) DO NOTHING`)
+            .bind(eventId, reportA, reportB, m.score, created, other.id, r.id, ...snapshotValues);
+        const notice = (recipient: string, title: string, target: Row) => db().prepare(`INSERT INTO notifications(id,userId,body,link,created)
+            SELECT ?,?,?,?,? WHERE EXISTS(SELECT 1 FROM match_alerts WHERE id=?)`)
+            .bind(id(), recipient, `Strong match (${m.score}% similarity) for "${title}": "${target.title}". Review the details and verify ownership.`, '/?report=' + target.id, created, eventId);
+        await db().batch([reserve, notice(r.owner, r.title, other), notice(other.owner, other.title, r)]);
+    }
+}
 async function handle(req: Request) {
     const url = new URL(req.url), path = url.pathname.replace(/^\/api\//, '').split('/'), method = req.method;
     if (method !== 'GET') {
@@ -31,6 +68,8 @@ async function handle(req: Request) {
         if (Number(req.headers.get('content-length') || 0) > 6 * 1024 * 1024)
             fail('Request is too large.', 413);
     }
+    if (path[0] === 'config' && method === 'GET')
+        return { auth: authCapabilities() };
     if (path[0] === 'media' && method === 'GET') {
         const key = path[1];
         if (!/^[a-f0-9-]+\.(jpg|png|webp)$/.test(key))
@@ -91,11 +130,11 @@ async function handle(req: Request) {
         return { open: (await one('SELECT count(*) AS n FROM reports WHERE demo=0 AND hidden=0 AND status IN (\'Open\',\'Claim Pending\')'))!.n, returned: (await one('SELECT count(*) AS n FROM reports WHERE demo=0 AND hidden=0 AND status=\'Returned\''))!.n, demo: (await one('SELECT count(*) AS n FROM reports WHERE demo=1 AND hidden=0'))!.n, happy: await all('SELECT r.category, r.date FROM claims c JOIN reports r ON r.id=c.reportId WHERE c.status=\'Returned\' AND c.finderConsent=1 AND c.claimantConsent=1 AND r.hidden=0 AND r.demo=0 ORDER BY c.created DESC LIMIT 12') };
     const u = await current(req);
     if (path[0] === 'me' && method === 'GET')
-        return { user: u ? { id: u.id, name: u.name, admin: ((env as unknown as Row).ADMIN_USER_IDS || '').split(',').map((s: string) => s.trim().toLowerCase()).includes(u.id.toLowerCase()) } : null };
+        return { user: u ? { id: u.id, name: u.name, email: u.email, emailVerified: u.emailVerified, admin: ((env as unknown as Row).ADMIN_USER_IDS || '').split(',').map((s: string) => s.trim()).includes(u.id) } : null };
     if (!u)
         fail('Please sign in to continue.', 401);
     const user = u!;
-    const admin = ((env as unknown as Row).ADMIN_USER_IDS || '').split(',').map((s: string) => s.trim().toLowerCase()).includes(user.id.toLowerCase());
+    const admin = ((env as unknown as Row).ADMIN_USER_IDS || '').split(',').map((s: string) => s.trim()).includes(user.id);
     if (method !== 'GET')
         await limit(user.id + ':' + path[0], path[0] === 'reports' ? 10 : 30);
     if (path[0] === 'upload' && method === 'POST') {
@@ -184,25 +223,19 @@ async function handle(req: Request) {
         const reportId = existing?.id || id();
         const fields = ['type', 'title', 'category', 'description', 'colour', 'brand', 'date', 'location', 'privateDetails', 'images'];
         const vals = fields.map(k => k === 'images' ? JSON.stringify(data.images) : (data as Row)[k]);
+        const imageGuard = data.images.map(() => 'EXISTS(SELECT 1 FROM uploads u WHERE u.id=? AND u.owner=? AND NOT EXISTS(SELECT 1 FROM upload_cleanup q WHERE q.id=u.id))').join(' AND ') || '1';
+        const imageParams = data.images.flatMap(image => [image.slice('/api/media/'.length), user.id]);
         if (existing) {
-            const result = await run(`UPDATE reports SET ${fields.map(k => k + '=?').join(',')} WHERE id=? AND owner=? AND hidden=0 AND status IN ('Open','Claim Pending')`, ...vals, reportId, user.id);
+            const result = await run(`UPDATE reports SET ${fields.map(k => k + '=?').join(',')} WHERE id=? AND owner=? AND hidden=0 AND status IN ('Open','Claim Pending') AND ${imageGuard}`, ...vals, reportId, user.id, ...imageParams);
             if (!result.meta.changes)
                 fail('This report changed before it could be edited. Refresh and try again.', 409);
         }
-        else
-            await run(`INSERT INTO reports(id,owner,${fields.join(',')},created) VALUES(${Array(13).fill('?').join(',')})`, reportId, user.id, ...vals, now());
-        const r = await one('SELECT * FROM reports WHERE id=?', reportId);
-        const matches = await suggestions(r!);
-        const notices: any[] = [];
-        for (const m of matches) {
-            if (m.report.owner !== user.id && !await blocked(user.id, m.report.owner)) {
-                notices.push(notify(m.report.owner, `A possible match for your report: ${data.title}`, `/?report=${reportId}`));
-            }
+        else {
+            const result = await run(`INSERT INTO reports(id,owner,${fields.join(',')},created) SELECT ${Array(13).fill('?').join(',')} WHERE ${imageGuard}`, reportId, user.id, ...vals, now(), ...imageParams);
+            if (!result.meta.changes) fail('A photo expired before publication. Upload it again and retry.', 409);
         }
-        if (matches.length)
-            notices.push(notify(user.id, `${matches.length} possible matches for ${data.title}`, `/?report=${reportId}`));
-        if (notices.length)
-            await db().batch(notices);
+        const r = await one('SELECT * FROM reports WHERE id=?', reportId);
+        await notifyStrongMatches(r!);
         return { id: reportId };
     }
     if (path[0] === 'save' && method === 'POST') {
@@ -225,6 +258,8 @@ async function handle(req: Request) {
     if (path[0] === 'admin') {
         if (!admin)
             fail('Administrator access required.', 403);
+        if (path[1] === 'operations' && method === 'GET')
+            return { storage: (env as unknown as Row).STORAGE_MODE || 'managed', auth: authCapabilities(), cleanup: await maintain(db(), env.BUCKET!) };
         if (method === 'GET')
             return { flags: await all('SELECT f.*,r.title,r.hidden FROM flags f JOIN reports r ON r.id=f.reportId ORDER BY f.created DESC') };
         const f = await one('SELECT * FROM flags WHERE id=?', b.id);
@@ -260,6 +295,23 @@ async function handle(req: Request) {
             fail('Conversation unavailable.', 403);
         if (method === 'GET')
             return { claim: c, messages: await all('SELECT id,sender,body,created FROM messages WHERE claimId=? ORDER BY created,id', c!.id), blocked: await blocked(user.id, user.id === c!.owner ? c!.claimant : c!.owner) };
+        // Either participant can leave an arrangement, including after a block
+        // or moderation action. A completed return can never be reopened here.
+        if (method === 'POST' && b.action === 'cancel' && !path[2]) {
+            if (c!.status !== 'Approved')
+                fail('Only an arranged return can be cancelled.', 409);
+            const result = await db().batch([
+                db().prepare(`UPDATE claims SET status='Cancelled',finderConfirmed=0,claimantConfirmed=0,finderConsent=0,claimantConsent=0
+                    WHERE id=? AND status='Approved' AND EXISTS(SELECT 1 FROM reports WHERE id=? AND status='Return Arranged')`).bind(c!.id, c!.reportId),
+                db().prepare(`UPDATE reports SET status=CASE WHEN EXISTS(SELECT 1 FROM claims WHERE reportId=? AND status='Pending') THEN 'Claim Pending' ELSE 'Open' END
+                    WHERE id=? AND status='Return Arranged' AND EXISTS(SELECT 1 FROM claims WHERE id=? AND status='Cancelled')
+                    AND NOT EXISTS(SELECT 1 FROM claims WHERE reportId=? AND status IN ('Approved','Returned'))`).bind(c!.reportId, c!.reportId, c!.id, c!.reportId),
+            ]);
+            if (!result[0].meta.changes)
+                fail('This arrangement changed before it could be cancelled. Refresh and try again.', 409);
+            await db().batch([notify(user.id === c!.owner ? c!.claimant : c!.owner, 'The return arrangement was cancelled. The report is open to claims again.', '/?claim=' + c!.id)]);
+            return { ok: true };
+        }
         // A participant may always stop sharing their completed return, including
         // when the other participant blocks them or moderation hides the listing.
         if (method === 'POST' && b.action === 'consent' && b.value === false) {
@@ -298,7 +350,9 @@ async function handle(req: Request) {
                 if (c!.status !== 'Approved')
                     fail('Only an arranged return can be confirmed.');
                 const field = user.id === c!.owner ? 'finderConfirmed' : 'claimantConfirmed';
-                await db().batch([db().prepare(`UPDATE claims SET ${field}=1 WHERE id=? AND status='Approved'`).bind(c!.id), db().prepare('UPDATE claims SET status=\'Returned\' WHERE id=? AND finderConfirmed=1 AND claimantConfirmed=1').bind(c!.id), db().prepare('UPDATE reports SET status=\'Returned\' WHERE id=? AND EXISTS(SELECT 1 FROM claims WHERE id=? AND status=\'Returned\')').bind(c!.reportId, c!.id), db().prepare('UPDATE claims SET status=\'Rejected\' WHERE reportId=? AND status=\'Pending\' AND EXISTS(SELECT 1 FROM reports WHERE id=? AND status=\'Returned\')').bind(c!.reportId, c!.reportId)]);
+                const result = await db().batch([db().prepare(`UPDATE claims SET ${field}=1 WHERE id=? AND status='Approved'`).bind(c!.id), db().prepare('UPDATE claims SET status=\'Returned\' WHERE id=? AND status=\'Approved\' AND finderConfirmed=1 AND claimantConfirmed=1').bind(c!.id), db().prepare('UPDATE reports SET status=\'Returned\' WHERE id=? AND EXISTS(SELECT 1 FROM claims WHERE id=? AND status=\'Returned\')').bind(c!.reportId, c!.id), db().prepare('UPDATE claims SET status=\'Rejected\' WHERE reportId=? AND status=\'Pending\' AND EXISTS(SELECT 1 FROM reports WHERE id=? AND status=\'Returned\')').bind(c!.reportId, c!.reportId)]);
+                if (!result[0].meta.changes)
+                    fail('This arrangement changed before it could be confirmed. Refresh and try again.', 409);
             }
             else if (b.action === 'consent') {
                 if (c!.status !== 'Returned')

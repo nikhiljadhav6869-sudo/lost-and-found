@@ -1,3 +1,5 @@
+import {isolate} from './environment.mjs';
+isolate('base');
 import {build} from 'esbuild';
 import path from 'node:path';
 import fs from 'node:fs';

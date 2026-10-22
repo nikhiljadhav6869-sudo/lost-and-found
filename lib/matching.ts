@@ -10,9 +10,12 @@ export type Matchable = {
     location: string;
     status: string;
 };
+// This is a similarity score, never a probability or proof of ownership.
+export const STRONG_MATCH_THRESHOLD = 75;
+export const isStrongMatch = (score: number) => Number.isFinite(score) && score > STRONG_MATCH_THRESHOLD;
 const tokens = (s: string) => new Set(s.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(w => w.length > 2 && !['the', 'and', 'with', 'lost', 'found', 'near', 'this', 'that', 'item'].includes(w)));
 export function match(a: Matchable, b: Matchable) {
-    if (a.type === b.type || a.id === b.id || !['Open', 'Claim Pending'].includes(b.status))
+    if (a.type === b.type || a.id === b.id || !['Open', 'Claim Pending'].includes(a.status) || !['Open', 'Claim Pending'].includes(b.status))
         return { score: 0, reasons: [] as string[] };
     let score = 0;
     const reasons: string[] = [];
