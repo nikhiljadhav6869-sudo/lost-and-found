@@ -2,9 +2,15 @@
 
 A full-stack community lost-and-found application, with a responsive teal/navy/coral interface, persistent SQLite records and images, private ownership claims, explainable matches, and mutually confirmed returns.
 
+**[Open the public app](https://lost-and-found-yzfl.onrender.com/)**. Create an account and verify your email to report an item or contact its finder. On a phone, use the app's **Install app** instructions to add it to your home screen. An internet connection is required.
+
+Scan this QR code to open the public app. It opens the website; installation is a separate choice in your phone's browser.
+
+![QR code for the public Lost & Found app](public/app-qr.png)
+
 ## Production setup update
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for Render Free with an external Turso database, private Supabase photos, Brevo account email, administrator setup, encrypted backups and cleanup. Configure the external services before deploying this update.
+The public deployment uses Render with an external Turso database, private Supabase photos and Brevo account email. See [DEPLOYMENT.md](DEPLOYMENT.md) to configure your own deployment, administrator access, encrypted backups and cleanup. [COMPLETION.md](COMPLETION.md) records which checks have actually passed and which still require testing on real devices.
 
 ## Run locally
 
