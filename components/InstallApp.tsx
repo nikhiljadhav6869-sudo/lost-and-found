@@ -9,7 +9,7 @@ type InstallPromptEvent = Event & {
     userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 };
 
-function InstallInstructions({ close }: { close: () => void }) {
+function InstallInstructions({ close, install, busy }: { close: () => void; install?: () => void; busy: boolean }) {
     const dialog = useRef<HTMLDialogElement>(null);
     const headingId = useId();
     const descriptionId = useId();
@@ -35,6 +35,9 @@ function InstallInstructions({ close }: { close: () => void }) {
             <button type="button" className="icon-btn" aria-label="Close installation instructions" onClick={close} autoFocus><X size={21} /></button>
         </header>
         <p id={descriptionId} className={styles.intro}>Keep your community a tap away. Add Lost &amp; Found to your home screen from your phone’s browser.</p>
+        {install && <button type="button" className="button primary full" onClick={install} disabled={busy}>
+            <Download size={18} aria-hidden="true" /> {busy ? 'Opening…' : 'Install app'}
+        </button>}
         <div className={styles.instructions}>
             <section aria-labelledby={`${headingId}-android`}>
                 <h3 id={`${headingId}-android`}><Smartphone size={18} aria-hidden="true" /> Android · Chrome</h3>
@@ -91,6 +94,13 @@ export default function InstallApp() {
         syncDisplayMode();
         setReady(true);
 
+        // A shareable install link opens guidance. Browser installation still
+        // requires a user gesture and the phone's own confirmation.
+        if (new URLSearchParams(window.location.search).get('install') === '1'
+            && !standalone.matches && !(navigator as Navigator & { standalone?: boolean }).standalone) {
+            setInstructionsOpen(true);
+        }
+
         if (window.isSecureContext && 'serviceWorker' in navigator) {
             // Let the browser activate updates normally; never interrupt a report or message.
             void navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' }).catch(() => {
@@ -105,6 +115,15 @@ export default function InstallApp() {
         };
     }, []);
 
+    function closeInstructions() {
+        setInstructionsOpen(false);
+        const url = new URL(window.location.href);
+        if (url.searchParams.has('install')) {
+            url.searchParams.delete('install');
+            window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+        }
+    }
+
     async function install() {
         if (!promptEvent) {
             setInstructionsOpen(true);
@@ -118,6 +137,7 @@ export default function InstallApp() {
             setNotice(outcome === 'accepted'
                 ? 'Installation requested. Follow your browser’s instructions.'
                 : 'You can install later or keep using the website.');
+            closeInstructions();
         } catch {
             setInstructionsOpen(true);
         } finally {
@@ -141,10 +161,10 @@ export default function InstallApp() {
                 <button type="button" className={`button primary ${styles.installButton}`} onClick={install} disabled={busy}>
                     <Download size={18} aria-hidden="true" /> {busy ? 'Opening…' : 'Install app'}
                 </button>
-                <span className={styles.caption}>For Android &amp; iPhone</span>
+                <a className={styles.caption} href="/?install=1">Installation link for Android &amp; iPhone</a>
             </div>
             {notice && <p className={styles.notice} role="status">{notice}</p>}
         </section>
-        {instructionsOpen && <InstallInstructions close={() => setInstructionsOpen(false)} />}
+        {instructionsOpen && <InstallInstructions close={closeInstructions} install={promptEvent ? install : undefined} busy={busy} />}
     </>;
 }

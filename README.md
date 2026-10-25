@@ -4,7 +4,9 @@ A full-stack community lost-and-found application, with a responsive teal/navy/c
 
 **[Open the public app](https://lost-and-found-yzfl.onrender.com/)**. Create an account and verify your email to report an item or contact its finder. On a phone, use the app's **Install app** instructions to add it to your home screen. An internet connection is required.
 
-Scan this QR code to open the public app. It opens the website; installation is a separate choice in your phone's browser.
+**[Install on Android or iPhone](https://lost-and-found-yzfl.onrender.com/?install=1)** — this link opens the installation steps immediately. Supported browsers also show an install button when their native prompt is available. Your phone requires confirmation; this is a web app, not an APK or App Store download.
+
+Scan this QR code to open the installation link:
 
 ![QR code for the public Lost & Found app](public/app-qr.png)
 
