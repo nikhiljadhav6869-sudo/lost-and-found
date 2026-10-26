@@ -10,6 +10,10 @@ Scan this QR code to open the installation link:
 
 ![QR code for the public Lost & Found app](public/app-qr.png)
 
+## Production optimization update
+
+The upgrade adds clearer authentication recovery, qualitative match labels, separate demo browsing, optional real image/text inference, semantic/photo search, public-only drafts, notification preferences, operational visibility and encrypted backup scheduling tools. See the [eight-problem improvement report](docs/IMPROVEMENT-REPORT.md), [test evidence](docs/TEST-REPORT.md) and [upgrade deployment guide](docs/DEPLOYMENT-UPGRADE.md). AI inference requires a separately running worker; the live backup scheduler still requires configuration. Physical-phone and signed Android-package validation remain outstanding.
+
 ## Production setup update
 
 The public deployment uses Render with an external Turso database, private Supabase photos and Brevo account email. See [DEPLOYMENT.md](DEPLOYMENT.md) to configure your own deployment, administrator access, encrypted backups and cleanup. [COMPLETION.md](COMPLETION.md) records which checks have actually passed and which still require testing on real devices.
@@ -25,7 +29,7 @@ npm run build:local
 npm start
 ```
 
-Open **http://127.0.0.1:3000**. Register through **Sign in → Create an account**. No API keys or paid services are required. The first start applies migrations and loads nine clearly labelled demonstration reports. Demo listings cannot receive claims and are excluded from real community statistics. Create accounts in separate browser profiles to demonstrate a finder and claimant.
+Open **http://127.0.0.1:3000**. Register through **Sign in → Create an account**. No API keys or paid services are required. The first start applies migrations and loads nine clearly labelled demonstration reports. Discovery shows real reports by default; use **Explore Demo** to view samples. Demo listings cannot receive claims and are excluded from real community statistics. Create accounts in separate browser profiles to demonstrate a finder and claimant.
 
 The portable runner uses Node's built-in SQLite engine. It runs the **same API handlers, authentication, matching and React components** as the hosted Cloudflare build. This runner was added because the Cloudflare Workers emulator crashed in the provided Windows environment.
 
@@ -40,6 +44,9 @@ The **Source Control** view shows changes and commits. Local configuration (`.de
 ### Useful commands
 
 ```sh
+npm run verify          # All local checks, build and isolated browser workflows
+npm run test:browser    # Isolated browser workflows; Linux needs Playwright Chromium
+npm run ai:worker      # Optional separate model worker (see docs/AI-MATCHING.md)
 npm run typecheck       # TypeScript validation
 npm test                # Real handlers + SQLite + image storage integration tests
 npm run test:http       # Real HTTP server checks; requires local socket access
@@ -62,7 +69,7 @@ Open the deployed HTTPS website (or scan its QR code) in the phone's browser, th
 
 The app has its own home-screen icon and opens in a standalone window on supporting browsers. It is an installable web app (PWA); no app-store account or APK download is needed. Browser support and menu wording vary. The Install app section is hidden when the app is already running in standalone mode.
 
-An internet connection is required for accounts, reports, photos and messages. The service worker stores only a generic reconnect page. It does not cache API responses, private conversations, uploaded photos or the live application pages. Installing the app does not provide server backups or change a hosting plan's data-retention limits. New service-worker versions activate normally after older app windows close, without forcibly reloading forms.
+An internet connection is required for accounts, reports, photos and messages. The service worker stores only a generic offline page with safe-return guidance. It does not cache API responses, private conversations, uploaded photos or the live application pages. Installing the app does not provide server backups or change a hosting plan's data-retention limits. New service-worker versions activate normally after older app windows close, without forcibly reloading forms.
 
 ### Persistent data and configuration
 
@@ -118,15 +125,15 @@ Each open report is compared against up to 1,000 recent open reports of the oppo
 | Found date within 30 days after lost date | 10 |
 | Shared approximate-location token | 10 |
 
-Text overlap divides shared tokens by the smaller token-set size. Common words and punctuation are removed. Scores of at least 40 produce up to eight suggestions, ordered by score. Suggestions are computed from current data when a detail page opens and when a report is created or updated; creation/updates notify both owners only when similarity is strictly above 75%, once per report pair. Exactly 75% does not notify. Strong matches are highlighted, while ordinary suggestions still appear from 40. Self-matches, demo activity, hidden/closed reports and blocked participants do not generate strong-match alerts. Reasons explain every contributing signal. Shared location text is **not a measured physical distance**.
+Text overlap divides shared tokens by the smaller token-set size. Common words and punctuation are removed. Scores of at least 40 produce up to eight suggestions, ordered by score. Suggestions are computed from current data when a detail page opens and when a report is created or updated; creation/updates notify opted-in owners only when the internal rank is strictly above 75, once per report pair. Exactly 75 does not notify. The interface uses qualitative labels rather than percentages. Strong matches are highlighted, while ordinary suggestions still appear from 40. Self-matches, demo activity, hidden/closed reports and blocked participants do not generate strong-match alerts. Reasons explain every contributing signal. Shared location text is **not a measured physical distance**.
 
-These are relevance indicators, not calibrated probabilities or proof of ownership. Photo comparison is manual and side by side; no AI image recognition is claimed. See `lib/matching.ts`.
+These are relevance indicators, not calibrated probabilities or proof of ownership. The table above describes the public-detail fallback in `lib/matching.ts`. When a separate worker has completed compatible embeddings, `lib/intelligence.ts` combines public details with real MiniLM semantic text and CLIP photo similarity. Public-detail matching stays available without the worker, and the UI identifies the method used. Private evidence never enters a model. See [AI architecture, setup and measured limits](docs/AI-MATCHING.md).
 
 ## Tests and verification
 
 `npm test` creates an isolated temporary SQLite database and upload directory under `.sites-runtime/`. It executes the actual server handlers with real authentication cookies, migrations, database writes and image storage. It covers registration/login/logout, access controls, multiple image formats, invalid uploads, metadata stripping, search, matching, edits, saves, private claims/messages, conflicting approval prevention, two-person confirmation, unsuccessful claims, blocking, moderation, consent, notifications, CSRF and rate limits.
 
-A second fresh Node process reopens the same data and verifies reports, image bytes, sessions, claims, messages and notifications survive restart. These are **API integration tests**, not browser-driven end-to-end tests. No tests contact external services or production accounts.
+A second fresh Node process reopens the same data and verifies reports, image bytes, sessions, claims, messages and notifications survive restart. These workflow checks are API integration tests. A separate `npm run test:browser` adds real browser automation against an isolated local build. Ordinary suites use local service contracts, not production accounts or real email delivery. The optional AI benchmark downloads pinned pretrained weights and runs actual inference locally.
 
 Six additional regression checks deliberately pause report edits, closure and deletion after reading their state, approve a claim, then resume the stale request. These changes must be rejected without damaging the arranged return. Tests also verify that participants can revoke Happy Returns consent after blocking or moderation, and that closed reports remain deletable.
 
@@ -170,4 +177,4 @@ Apply each migration once. The portable runner tracks migrations itself. Never e
 
 ## Operational limitations
 
-Email verification and self-service password reset use a configured Brevo sender; without both mail settings, these email features remain unavailable. No external location service, image recognition, push notifications, match emails or malware scanning is configured. Messaging uses polling. Photos receive structural validation and metadata stripping, not server-side visual decoding; the browser performs actual decoding/re-encoding. Animated WebP is rejected. The maintenance command previews or removes unattached uploads older than seven days and rate-limit records older than one day. Run it regularly from a trusted operator environment; no external scheduler is provisioned. Either participant can cancel an approved arrangement before both confirmations, including while blocked or moderated. Its conversation remains in history and other pending claims survive. Completed returns cannot be cancelled. Large deployments should move matching to indexed/background processing and notifications to a durable queue. Content filtering is advisory and cannot detect every private detail. These limits are explicit rather than disguised as working integrations.
+Email verification and self-service password reset use a configured Brevo sender; without both mail settings, these email features remain unavailable. Optional image/semantic inference is implemented in a separate worker but is not automatically deployed with the web service. No external location service, push notifications, match emails or malware scanning is configured. Messaging uses polling. Photos receive structural validation and metadata stripping, not server-side visual decoding; the browser performs actual decoding/re-encoding. Animated WebP is rejected. The maintenance command previews or removes unattached uploads older than seven days and rate-limit records older than one day. The new guarded daily operations workflow adds encrypted private backup upload and retention before cleanup; its bucket/secrets and repository enable variable must be configured. No active external backup scheduler was provisioned by this code upgrade. Either participant can cancel an approved arrangement before both confirmations, including while blocked or moderated. Its conversation remains in history and other pending claims survive. Completed returns cannot be cancelled. Inference now runs in leased background jobs; retrieval is limited to the most recent 1,000 eligible reports. Larger deployments need a vector index, and durable mail delivery remains separate work. Content filtering is advisory and cannot detect every private detail. These limits are explicit rather than disguised as working integrations.

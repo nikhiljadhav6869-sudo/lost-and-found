@@ -1,5 +1,7 @@
 # Finish the existing Render deployment
 
+For the October production optimization release, read [the additive upgrade guide](docs/DEPLOYMENT-UPGRADE.md). It covers the optional separate AI worker, guarded backup schedule, rollback and checks. The storage setup below remains applicable; already configured credentials should be preserved.
+
 The application supports **Render Free + Turso/libSQL + private Supabase Storage**. The database, sessions, reports, messages, and photos then live outside Render's temporary filesystem. The existing Render service and URL can stay unchanged. Free plans have quotas; Supabase may pause an inactive free project. This is durable storage, not an unlimited-service or uptime guarantee.
 
 ## 1. Create the external resources

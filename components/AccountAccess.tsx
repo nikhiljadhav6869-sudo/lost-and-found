@@ -3,24 +3,11 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ArrowRight, Loader2, Lock, X } from 'lucide-react';
 
+import { requestJson, RequestError as AuthError } from '../lib/request';
+
 type Capabilities = { passwordReset: boolean; emailVerification: boolean; emailVerificationRequired: boolean };
 type Props = { mode: string; onModeChange: (mode: string) => void; onAuthenticated: () => void | Promise<void> };
-class AuthError extends Error {
-    constructor(message: string, readonly code = '') { super(message); }
-}
-
-async function accountRequest(path: string, body?: Record<string, unknown>) {
-    const response = await fetch('/api/' + path, {
-        method: body ? 'POST' : 'GET',
-        credentials: 'same-origin',
-        cache: 'no-store',
-        headers: body ? { 'Content-Type': 'application/json' } : undefined,
-        body: body ? JSON.stringify(body) : undefined,
-    });
-    const data = await response.json() as { message?: string; error?: string; code?: string; auth: Capabilities; token?: string };
-    if (!response.ok) throw new AuthError(data.message || data.error || 'Please try again.', data.code);
-    return data;
-}
+const accountRequest = requestJson;
 
 /** Always mount this component. It also handles links from account emails. */
 export default function AccountAccess({ mode, onModeChange, onAuthenticated }: Props) {
@@ -30,13 +17,15 @@ export default function AccountAccess({ mode, onModeChange, onAuthenticated }: P
     const [error, setError] = useState('');
     const [message, setMessage] = useState('');
     const [token, setToken] = useState('');
+    const [cooldown, setCooldown] = useState(0);
+    const [configError, setConfigError] = useState(false);
     const [capabilities, setCapabilities] = useState<Capabilities | null>(null);
     const changeMode = (next: string) => { setError(''); setMessage(''); onModeChange(next); };
 
     useEffect(() => {
         let mounted = true;
         accountRequest('config').then(data => { if (mounted) setCapabilities(data.auth); }).catch(() => {
-            if (mounted) setCapabilities({ passwordReset: false, emailVerification: false, emailVerificationRequired: false });
+            if (mounted) setConfigError(true);
         });
         const url = new URL(window.location.href);
         const flow = url.searchParams.get('auth');
@@ -69,16 +58,21 @@ export default function AccountAccess({ mode, onModeChange, onAuthenticated }: P
         return () => { document.body.style.overflow = previousOverflow; previous?.focus(); };
     }, [!!mode]);
 
+    useEffect(() => { if (!cooldown) return; const timer = setTimeout(() => setCooldown(c => Math.max(0, c - 1)), 1000); return () => clearTimeout(timer); }, [cooldown]);
+
     async function submit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
+        if (cooldown && ['verify', 'forgot'].includes(mode)) return;
         const values = Object.fromEntries(new FormData(event.currentTarget));
         setBusy(true); setError(''); setMessage('');
         try {
             if (mode === 'forgot') {
                 await accountRequest('auth/request-password-reset', { email, redirectTo: '/?auth=reset' });
+                setCooldown(60);
                 setMessage('If an account uses this email, a reset link will arrive shortly. Check your spam folder too.');
             } else if (mode === 'verify') {
                 await accountRequest('auth/send-verification-email', { email, callbackURL: '/?auth=verified' });
+                setCooldown(60);
                 setMessage('If this email belongs to an unverified account, a verification link will arrive shortly.');
             } else if (mode === 'reset') {
                 if (values.password !== values.confirmPassword) throw new AuthError('The two passwords do not match.');
@@ -119,13 +113,15 @@ export default function AccountAccess({ mode, onModeChange, onAuthenticated }: P
         <header><h2 id="account-access-title">{titles[mode] || titles.login}</h2><button type="button" className="icon-btn" aria-label="Close account dialog" disabled={busy} onClick={close}><X /></button></header>
         <p className="modal-intro">{descriptions[mode] || descriptions.login}</p>
         {error && <div className="alert error" role="alert">{error}</div>}
+        {configError && <p role="alert">Account settings could not be loaded. <button disabled={busy} onClick={() => { setBusy(true); accountRequest('config').then(data => { setCapabilities(data.auth); setConfigError(false); }).catch(() => setConfigError(true)).finally(() => setBusy(false)); }}>Retry connection</button></p>}
+        {mode === 'verify' && <div className="private-note">Check Spam, Junk and your institution’s quarantine folder. Allow a few minutes and use the newest link; verification links expire after one hour. A request confirmation does not guarantee inbox delivery. You can browse public items while waiting.</div>}
         {message && <div className="alert" role="status">{message}</div>}
         {emailUnavailable ? <p role="status">Email delivery is not available yet. Please contact the app operator for help.</p> : <form onSubmit={submit}>
             {mode === 'register' && <label>Your name<input name="name" autoComplete="name" minLength={2} maxLength={80} required disabled={busy}/></label>}
             {mode !== 'reset' && <label>Email<input name="email" type="email" autoComplete="email" required value={email} disabled={busy} onChange={event => setEmail(event.target.value)}/></label>}
             {['login', 'register', 'reset'].includes(mode) && <label>{mode === 'reset' ? 'New password' : 'Password'}<input key={mode} name="password" type="password" minLength={12} maxLength={128} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} required disabled={busy}/><small>At least 12 characters.</small></label>}
             {mode === 'reset' && <label>Confirm new password<input name="confirmPassword" type="password" minLength={12} maxLength={128} autoComplete="new-password" required disabled={busy}/></label>}
-            <button className="button primary full" disabled={busy || (!capabilities && ['forgot', 'verify'].includes(mode))}>{busy && <Loader2 className="spin" size={18}/>} {labels[mode] || labels.login}<ArrowRight size={17}/></button>
+            <button className="button primary full" disabled={busy || (cooldown > 0 && ['forgot', 'verify'].includes(mode)) || (!capabilities && ['forgot', 'verify'].includes(mode))}>{busy && <Loader2 className="spin" size={18}/>} {cooldown > 0 && ['forgot', 'verify'].includes(mode) ? `Resend in ${cooldown}s` : labels[mode] || labels.login}<ArrowRight size={17}/></button>
         </form>}
         {mode === 'login' && <>
             <p className="form-switch">New around here? <button disabled={busy} onClick={() => changeMode('register')}>Create an account</button></p>

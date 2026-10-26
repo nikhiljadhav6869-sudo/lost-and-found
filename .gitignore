@@ -62,3 +62,14 @@ next-env.d.ts
 # Private operator exports
 /backups/
 *.lfbackup
+
+/ai-worker/node_modules/
+/ai-worker/.cache/
+
+/android/node_modules/
+/android/.gradle/
+/android/app/build/
+*.keystore
+*.jks
+/android/app-release*.apk
+/android/app-release*.aab

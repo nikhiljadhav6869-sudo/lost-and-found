@@ -8,12 +8,17 @@ export async function maintain(db: Database, bucket: R2Bucket, { apply = false, 
   const cutoff = time - 7 * 86400000;
   const candidates = (await db.prepare(`SELECT id FROM uploads u WHERE ${staleUpload} ORDER BY created LIMIT 100`).bind(cutoff).all<{ id: string }>()).results;
   const queued = (await db.prepare('SELECT id FROM upload_cleanup ORDER BY created LIMIT 100').all<{ id: string }>()).results;
-  const expired = (await db.prepare('SELECT key FROM limits').all<{ key: string }>()).results.filter(({ key }) => {
-    const minute = key.slice(key.lastIndexOf(':') + 1);
-    return /^\d+$/.test(minute) && Number(minute) < Math.floor(time / 60000) - 1440;
-  });
+  const expired = (await db.prepare("SELECT key FROM limits WHERE substr(rtrim(key,'0123456789'),-1)=':' AND length(key)>length(rtrim(key,'0123456789')) AND CAST(substr(key,length(rtrim(key,'0123456789'))+1) AS INTEGER)<? LIMIT 1000").bind(Math.floor(time/60000)-1440).all<{key:string}>()).results;
   const result = { apply, candidates: candidates.length, queued: queued.length, expiredLimits: expired.length, deletedUploads: 0, deletedLimits: 0, failedUploads: 0 };
+  const expiry = await db.prepare('SELECT (SELECT count(*) FROM session WHERE expiresAt<?) AS sessions,(SELECT count(*) FROM verification WHERE expiresAt<?) AS tokens').bind(time,time).first<{sessions:number;tokens:number}>();
+  Object.assign(result,{expiredSessions:expiry?.sessions||0,expiredTokens:expiry?.tokens||0});
   if (!apply) return result;
+  await db.batch([
+    db.prepare('DELETE FROM session WHERE id IN (SELECT id FROM session WHERE expiresAt<? LIMIT 500)').bind(time),
+    db.prepare('DELETE FROM verification WHERE id IN (SELECT id FROM verification WHERE expiresAt<? LIMIT 500)').bind(time),
+    db.prepare('DELETE FROM operations WHERE id IN (SELECT id FROM operations WHERE created<? LIMIT 1000)').bind(time-30*86400000),
+    db.prepare('DELETE FROM search_jobs WHERE id IN (SELECT id FROM search_jobs WHERE created<? LIMIT 500)').bind(time-86400000),
+  ]);
   for (const { id } of candidates) {
     await db.prepare(`INSERT OR IGNORE INTO upload_cleanup(id,created)
       SELECT u.id,? FROM uploads u WHERE u.id=? AND ${staleUpload}`).bind(time, id, cutoff).run();

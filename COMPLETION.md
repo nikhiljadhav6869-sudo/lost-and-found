@@ -1,5 +1,13 @@
 # Completion and verification
 
+## Current upgrade checkpoint — 26 October 2026
+
+All 12 local verification groups passed, including a portable production build, authentication/storage/return races, background-job privacy and headless mobile-width browser workflows. Real pinned MiniLM/CLIP inference also passed a separate local smoke benchmark. See [the complete current report](docs/IMPROVEMENT-REPORT.md), [test evidence](docs/TEST-REPORT.md) and [deployment guide](docs/DEPLOYMENT-UPGRADE.md).
+
+AI worker hosting, live backup schedule provisioning, physical-phone acceptance and signed Android packaging remain outstanding. The entries below are historical records from earlier releases; earlier statements about absent AI or unavailable browser checks describe those earlier checkpoints, not the new source.
+
+## Historical implementation and verification
+
 Implemented: persistent accounts and sessions, report management, multi-image upload and cover selection, search/filter/sort, live explainable matching, saved items, private evidence and conversations, report/block controls, enforced return states, two-person confirmation, notifications, administrator moderation, comparison, downloadable QR codes, category checklists, mutually consented happy-return summaries, real statistics separated from demo data, and a responsive light/dark interface.
 
 ## Checks actually performed

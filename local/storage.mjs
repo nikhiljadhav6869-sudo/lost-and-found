@@ -69,6 +69,7 @@ export const env = {
   get STORAGE_MODE() { return storageMode; },
   get SEED_DEMO() { return storageMode === 'remote' ? 'false' : process.env.SEED_DEMO; },
   get BETTER_AUTH_SECRET() { return process.env.BETTER_AUTH_SECRET; },
+  get MATCH_WEIGHTS() { return process.env.MATCH_WEIGHTS; },
   get ADMIN_USER_IDS() { return process.env.ADMIN_USER_IDS || ''; },
   get BREVO_API_KEY() { return process.env.BREVO_API_KEY; },
   get EMAIL_FROM() { return process.env.EMAIL_FROM; },

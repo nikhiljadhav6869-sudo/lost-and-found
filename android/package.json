@@ -1,0 +1,12 @@
+{
+  "name": "lost-found-android-packaging",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "init": "bubblewrap init --manifest=https://lost-and-found-yzfl.onrender.com/manifest.webmanifest",
+    "build": "bubblewrap build"
+  },
+  "devDependencies": {
+    "@bubblewrap/cli": "1.27.0"
+  }
+}

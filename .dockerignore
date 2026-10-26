@@ -1,0 +1,12 @@
+.git
+node_modules
+ai-worker
+.sites-runtime
+.env*
+.dev.vars*
+data
+backups
+*.lfbackup
+dist
+.next
+.wrangler

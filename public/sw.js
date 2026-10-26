@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lost-found-offline-v1';
+const CACHE_NAME = 'lost-found-offline-v2';
 const OFFLINE_URL = '/offline.html';
 
 // Only this generic page is stored. Reports, photos, API responses and sessions

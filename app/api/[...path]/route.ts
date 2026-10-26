@@ -1,6 +1,9 @@
 import { env } from 'cloudflare:workers';
 import { auth, authCapabilities } from '../../../lib/auth';
 import { match, categories, isStrongMatch, type Matchable } from '../../../lib/matching';
+import { multimodal, rankingWeights, MODEL_VERSION, cosine, vector } from '../../../lib/intelligence';
+import { featureRoute, intelligenceAvailable } from '../../../lib/features';
+import { recordOperation } from '../../../lib/operations';
 import { cleanImage } from '../../../lib/images';
 import { z } from 'zod';
 import { ensureDemo } from '../../../lib/demo';
@@ -20,32 +23,33 @@ const notify = (u: string, body: string, link: string) => db().prepare('INSERT I
 async function limit(key: string, max = 30) { const k = key + ':' + Math.floor(now() / 60000); const r = await one('INSERT INTO limits(key,count) VALUES(?,1) ON CONFLICT(key) DO UPDATE SET count=count+1 RETURNING count', k); if (r!.count > max)
     fail('Please slow down and try again in a minute.', 429); }
 async function current(req: Request) { const s = await auth(new URL(req.url).origin).api.getSession({ headers: req.headers }); return s?.user ?? null; }
-const publicReport = (r: Row): Row => { const { privateDetails, ...safe } = r; return { ...safe, images: JSON.parse(r.images) }; };
+const publicReport = (r: Row): Row => { const { privateDetails, textVector, imageVector, model, revision, matchRevision, ...safe } = r; return { ...safe, images: JSON.parse(r.images) }; };
 async function blocked(a: string, b: string) { return !!await one('SELECT 1 FROM blocks WHERE (userId=? AND blocked=?) OR (userId=? AND blocked=?)', a, b, b, a); }
-const reportSchema = z.object({ type: z.enum(['lost', 'found']), title: z.string().trim().min(3).max(100), category: z.string().refine(x => categories.includes(x)), description: z.string().trim().min(10).max(2000), colour: z.string().trim().max(50), brand: z.string().trim().max(60), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(x => Number.isFinite(Date.parse(x)) && x <= new Date().toISOString().slice(0, 10)), location: z.string().trim().min(2).max(100), privateDetails: z.string().trim().max(2000), images: z.array(z.string().max(150)).max(5) });
+const reportSchema = z.object({ type: z.enum(['lost', 'found']), title: z.string().trim().min(3).max(100), category: z.string().refine(x => categories.includes(x)), description: z.string().trim().min(10).max(2000), colour: z.string().trim().max(50), brand: z.string().trim().max(60), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(x => Number.isFinite(Date.parse(x)) && new Date(x).toISOString().slice(0, 10) === x && x <= new Date().toISOString().slice(0, 10)), location: z.string().trim().min(2).max(100), privateDetails: z.string().trim().max(2000), images: z.array(z.string().max(150)).max(5) });
 async function matchingReports(r: Row) {
     if (r.hidden || !['Open', 'Claim Pending'].includes(r.status)) return [];
-    const candidates = await all(`SELECT * FROM reports candidate
-        WHERE type!=? AND owner!=? AND hidden=0 AND demo=? AND status IN ('Open','Claim Pending')
+    const sourceEmbedding = await one('SELECT * FROM embeddings WHERE reportId=? AND revision=?', r.id, r.matchRevision);
+    const candidates = await all(`SELECT candidate.*, e.textVector,e.imageVector,e.model,e.revision FROM reports candidate LEFT JOIN embeddings e ON e.reportId=candidate.id AND e.revision=candidate.matchRevision
+        WHERE candidate.type!=? AND candidate.owner!=? AND candidate.hidden=0 AND candidate.demo=? AND candidate.status IN ('Open','Claim Pending')
         AND NOT EXISTS(SELECT 1 FROM blocks WHERE (userId=? AND blocked=candidate.owner) OR (userId=candidate.owner AND blocked=?))
-        ORDER BY created DESC LIMIT 1000`, r.type, r.owner, r.demo, r.owner, r.owner);
+        ORDER BY candidate.created DESC LIMIT 1000`, r.type, r.owner, r.demo, r.owner, r.owner);
     return candidates.map(b => {
-        const result = match(r as Matchable, b as Matchable);
-        return { report: publicReport(b), ...result, strongMatch: isStrongMatch(result.score) };
+        const result = multimodal(r as Matchable, b as Matchable, sourceEmbedding as any, b.model ? b as any : null, rankingWeights((env as unknown as Row).MATCH_WEIGHTS));
+        return { report: publicReport(b), revision: b.matchRevision, ...result, strongMatch: isStrongMatch(result.score) };
     }).filter(m => m.score >= 40).sort((a, b) => b.score - a.score);
 }
 async function suggestions(r: Row) { return (await matchingReports(r)).slice(0, 8); }
 
 // Unique report pairs and event IDs make notifications idempotent even when
 // both reports are edited at once. Each batch inserts both recipients or none.
-async function notifyStrongMatches(r: Row) {
+export async function notifyStrongMatches(r: Row) {
     if (r.demo || r.hidden || !['Open', 'Claim Pending'].includes(r.status)) return;
-    const snapshots = ['type', 'owner', 'category', 'title', 'description', 'colour', 'brand', 'date', 'location'];
+    const snapshots = ['type', 'owner', 'category', 'title', 'description', 'colour', 'brand', 'date', 'location', 'matchRevision'];
     for (const m of (await matchingReports(r)).filter(m => m.strongMatch)) {
         const other = m.report, eventId = id(), created = now();
         const [reportA, reportB] = [r.id, other.id].sort();
         const snapshotGuard = snapshots.map(field => `a.${field}=? AND b.${field}=?`).join(' AND ');
-        const snapshotValues = snapshots.flatMap(field => [r[field], other[field]]);
+        const snapshotValues = snapshots.flatMap(field => [r[field], field === 'matchRevision' ? m.revision : other[field]]);
         const reserve = db().prepare(`INSERT INTO match_alerts(id,reportA,reportB,score,created)
             SELECT ?,?,?,?,? WHERE EXISTS(SELECT 1 FROM reports a JOIN reports b ON b.id=?
                 WHERE a.id=? AND a.owner!=b.owner AND a.type!=b.type
@@ -55,8 +59,8 @@ async function notifyStrongMatches(r: Row) {
                 AND ${snapshotGuard}) ON CONFLICT(reportA,reportB) DO NOTHING`)
             .bind(eventId, reportA, reportB, m.score, created, other.id, r.id, ...snapshotValues);
         const notice = (recipient: string, title: string, target: Row) => db().prepare(`INSERT INTO notifications(id,userId,body,link,created)
-            SELECT ?,?,?,?,? WHERE EXISTS(SELECT 1 FROM match_alerts WHERE id=?)`)
-            .bind(id(), recipient, `Strong match (${m.score}% similarity) for "${title}": "${target.title}". Review the details and verify ownership.`, '/?report=' + target.id, created, eventId);
+            SELECT ?,?,?,?,? WHERE EXISTS(SELECT 1 FROM match_alerts WHERE id=?) AND NOT EXISTS(SELECT 1 FROM preferences WHERE userId=? AND matches=0)`)
+            .bind(id(), recipient, `Strong match — High Similarity for "${title}": "${target.title}". Review the details and verify ownership.`, '/?report=' + target.id, created, eventId, recipient);
         await db().batch([reserve, notice(r.owner, r.title, other), notice(other.owner, other.title, r)]);
     }
 }
@@ -68,8 +72,9 @@ async function handle(req: Request) {
         if (Number(req.headers.get('content-length') || 0) > 6 * 1024 * 1024)
             fail('Request is too large.', 413);
     }
+    if (path[0] === 'health' && method === 'GET') { await one('SELECT 1'); return { ok: true }; }
     if (path[0] === 'config' && method === 'GET')
-        return { auth: authCapabilities() };
+        return { auth: authCapabilities(), intelligence: await intelligenceAvailable(db()) };
     if (path[0] === 'media' && method === 'GET') {
         const key = path[1];
         if (!/^[a-f0-9-]+\.(jpg|png|webp)$/.test(key))
@@ -94,11 +99,11 @@ async function handle(req: Request) {
                 fail('This report is unavailable.', 404);
             return { report: publicReport(r!), matches: await suggestions(r!) };
         }
-        const clauses = ['hidden=0'];
-        const values: any[] = [];
-        for (const field of ['type', 'category'])
+        const clauses = ['hidden=0', 'demo=?'];
+        const values: any[] = [url.searchParams.get('demo') === '1' ? 1 : 0];
+        for (const field of ['type', 'category', 'colour'])
             if (url.searchParams.get(field)) {
-                clauses.push(`${field}=?`);
+                clauses.push(`${field}=? COLLATE NOCASE`);
                 values.push(url.searchParams.get(field));
             }
         for (const field of ['q', 'location'])
@@ -122,12 +127,17 @@ async function handle(req: Request) {
             values.push(url.searchParams.get('status'));
         }
         const sort = url.searchParams.get('sort') === 'oldest' ? 'created ASC' : url.searchParams.get('sort') === 'title' ? 'title ASC' : 'created DESC';
-        const page = Math.max(0, Math.min(10000, Number(url.searchParams.get('page')) || 0));
+        const page = Math.max(0, Math.min(10000, Math.floor(Number(url.searchParams.get('page')) || 0)));
         const rows = await all(`SELECT * FROM reports WHERE ${clauses.join(' AND ')} ORDER BY ${sort} LIMIT 24 OFFSET ?`, ...values, page * 24);
         return { items: rows.map(publicReport), total: (await one(`SELECT count(*) AS n FROM reports WHERE ${clauses.join(' AND ')}`, ...values))!.n };
     }
-    if (path[0] === 'stats' && method === 'GET')
-        return { open: (await one('SELECT count(*) AS n FROM reports WHERE demo=0 AND hidden=0 AND status IN (\'Open\',\'Claim Pending\')'))!.n, returned: (await one('SELECT count(*) AS n FROM reports WHERE demo=0 AND hidden=0 AND status=\'Returned\''))!.n, demo: (await one('SELECT count(*) AS n FROM reports WHERE demo=1 AND hidden=0'))!.n, happy: await all('SELECT r.category, r.date FROM claims c JOIN reports r ON r.id=c.reportId WHERE c.status=\'Returned\' AND c.finderConsent=1 AND c.claimantConsent=1 AND r.hidden=0 AND r.demo=0 ORDER BY c.created DESC LIMIT 12') };
+    if (path[0] === 'stats' && method === 'GET') {
+        const [counts,happy] = await Promise.all([
+            one("SELECT coalesce(sum(demo=0 AND status IN ('Open','Claim Pending')),0) AS open,coalesce(sum(demo=0 AND status='Returned'),0) AS returned,coalesce(sum(demo=1),0) AS demo FROM reports WHERE hidden=0"),
+            all("SELECT r.category,r.date FROM claims c JOIN reports r ON r.id=c.reportId WHERE c.status='Returned' AND c.finderConsent=1 AND c.claimantConsent=1 AND r.hidden=0 AND r.demo=0 ORDER BY c.created DESC LIMIT 12")
+        ]);
+        return {...counts,happy};
+    }
     const u = await current(req);
     if (path[0] === 'me' && method === 'GET')
         return { user: u ? { id: u.id, name: u.name, email: u.email, emailVerified: u.emailVerified, admin: ((env as unknown as Row).ADMIN_USER_IDS || '').split(',').map((s: string) => s.trim()).includes(u.id) } : null };
@@ -136,7 +146,7 @@ async function handle(req: Request) {
     const user = u!;
     const admin = ((env as unknown as Row).ADMIN_USER_IDS || '').split(',').map((s: string) => s.trim()).includes(user.id);
     if (method !== 'GET')
-        await limit(user.id + ':' + path[0], path[0] === 'reports' ? 10 : 30);
+        await limit(user.id + ':' + path[0], path[0] === 'reports' ? 10 : path[0] === 'smart-search' ? 5 : 30);
     if (path[0] === 'upload' && method === 'POST') {
         const bytes = await boundedBody(req, 6 * 1024 * 1024);
         const bounded = new Request(req.url, { method: 'POST', headers: req.headers, body: bytes });
@@ -171,6 +181,8 @@ async function handle(req: Request) {
                 throw e;
             fail('Please send valid form data.');
         }
+    const feature = await featureRoute(db(), path, method, b, user, url, publicReport);
+    if (feature !== null) return feature;
     if (path[0] === 'notifications' && method === 'POST') {
         await run('UPDATE notifications SET read=1 WHERE userId=?', user.id);
         return { ok: true };
@@ -259,7 +271,8 @@ async function handle(req: Request) {
         if (!admin)
             fail('Administrator access required.', 403);
         if (path[1] === 'operations' && method === 'GET')
-            return { storage: (env as unknown as Row).STORAGE_MODE || 'managed', auth: authCapabilities(), cleanup: await maintain(db(), env.BUCKET!) };
+            return { storage: (env as unknown as Row).STORAGE_MODE || 'managed', auth: authCapabilities(), cleanup: await maintain(db(), env.BUCKET!), intelligence: await intelligenceAvailable(db()), jobs: await all('SELECT state,count(*) AS count FROM embedding_jobs GROUP BY state'), events: await all('SELECT kind,status,count(*) AS count,round(avg(duration)) AS averageMs FROM operations WHERE created>? GROUP BY kind,status',now()-86400000), users: await one('SELECT count(*) AS count FROM user'), activity: await all("SELECT category,count(*) AS count FROM reports WHERE demo=0 AND hidden=0 GROUP BY category ORDER BY count DESC"), resolution: await one("SELECT count(*) AS measuredReturns,round(avg(c.resolvedAt-r.created)/86400000.0,1) AS averageDays FROM claims c JOIN reports r ON r.id=c.reportId WHERE c.status='Returned' AND c.resolvedAt IS NOT NULL AND r.demo=0") };
+        if (path[1] === 'users' && method === 'GET') { const page = Math.max(0,Math.min(10000,Math.floor(Number(url.searchParams.get('page'))||0))); return {items: await all('SELECT id,name,emailVerified,createdAt FROM user ORDER BY createdAt DESC LIMIT 25 OFFSET ?',page*25)}; }
         if (method === 'GET')
             return { flags: await all('SELECT f.*,r.title,r.hidden FROM flags f JOIN reports r ON r.id=f.reportId ORDER BY f.created DESC') };
         const f = await one('SELECT * FROM flags WHERE id=?', b.id);
@@ -368,15 +381,17 @@ async function handle(req: Request) {
     }
     fail('This action is unavailable.', 404);
 }
-async function route(req: Request) { try {
+async function route(req: Request) { const started=Date.now(); try {
     const result = await handle(req);
+    if (Date.now()-started>2000) await recordOperation('api','ok',Date.now()-started);
     return result instanceof Response ? result : Response.json(result, { headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
 }
 catch (e) {
     const err = e as Error & {
         status?: number;
     };
-    return Response.json({ error: e instanceof z.ZodError ? e.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ') : err.status ? err.message : 'Something went wrong. Please try again.' }, { status: e instanceof z.ZodError ? 400 : err.status || 500 });
+    if (!(e instanceof z.ZodError) && (!err.status || err.status>=500)) await recordOperation('api','failed',Date.now()-started);
+    return Response.json({ error: e instanceof z.ZodError ? e.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ') : err.status ? err.message : 'Something went wrong. Please try again.' }, { status: e instanceof z.ZodError ? 400 : err.status || 500, headers: {'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'} });
 } }
 export const GET = route;
 export const POST = route;

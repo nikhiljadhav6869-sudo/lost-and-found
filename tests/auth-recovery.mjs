@@ -40,6 +40,12 @@ try{
   await call('request-password-reset',{email,redirectTo:'/?auth=reset'});await drainAuthEmails();
   const expiredLink=link(sent.at(-1));await env.DB.prepare('UPDATE verification SET expiresAt=?').bind(Date.now()-1000).run();
   const expired=await auth.GET(new Request(expiredLink));assert.ok(expired.status>=300);assert.ok((expired.headers.get('location')||'').includes('error='));
+  let retries=0;globalThis.fetch=async()=>{retries++;return retries<3?Response.json({error:'temporary'},{status:503}):Response.json({messageId:'retry-test'});};
+  await call('request-password-reset',{email,redirectTo:'/?auth=reset'});await drainAuthEmails();assert.equal(retries,3);
+  let permanent=0;globalThis.fetch=async()=>{permanent++;return Response.json({error:'private provider detail'},{status:400});};
+  await call('request-password-reset',{email,redirectTo:'/?auth=reset'});await drainAuthEmails();assert.equal(permanent,1);
+  const events=(await env.DB.prepare("SELECT * FROM operations WHERE kind='email'").all()).results;assert.ok(events.some(e=>e.status==='failed'));assert.ok(!JSON.stringify(events).includes(email));assert.ok(!JSON.stringify(events).includes('private provider detail'));
+  console.log('PASS bounded transient mail retry, permanent-failure reporting and sanitized logs');
   delete process.env.EMAIL_FROM;assert.throws(()=>authMailSettings(),/Configure/);
   console.log('PASS untrusted redirects, expired links and partial mail configuration rejected');
 }finally{globalThis.fetch=originalFetch;}

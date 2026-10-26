@@ -1,4 +1,5 @@
 import { env } from 'cloudflare:workers';
+import { recordOperation } from './operations';
 
 type MailSettings = { apiKey: string; sender: string; name: string };
 type AuthMail = { to: string; name: string; url: string; purpose: 'verify' | 'reset' };
@@ -44,16 +45,25 @@ export async function sendAuthEmail(mail: AuthMail, origin: string) {
         }),
     });
     // Provider response bodies can contain recipients or other private details.
-    if (!response.ok) throw new Error('Account email provider rejected delivery.');
+    if (!response.ok) throw Object.assign(new Error('Account email provider rejected delivery.'), { retryable: response.status === 429 || response.status >= 500 });
 }
 
 // Render's Node server remains alive after a response. Send outside the auth
 // response to avoid exposing whether an address exists through provider latency.
 // Failed delivery has a fixed log message; the user can request another link.
 export function queueAuthEmail(mail: AuthMail, origin: string): void {
-    const task = sendAuthEmail(mail, origin).catch(() => {
-        console.error('Account email delivery failed. Check the provider configuration and delivery dashboard.');
-    });
+    const task = (async () => {
+        for (let attempt=0; attempt<3; attempt++) {
+            const started=Date.now();
+            try { await sendAuthEmail(mail, origin); await recordOperation('email','accepted',Date.now()-started); return; }
+            catch (error) {
+                const retryable = (error as {retryable?:boolean}).retryable === true || error instanceof TypeError || (error instanceof Error && error.name === 'TimeoutError');
+                if (attempt<2 && retryable) { await recordOperation('email','retry'); await new Promise(resolve=>setTimeout(resolve,1000*2**attempt)); continue; }
+                await recordOperation('email','failed',Date.now()-started);
+                console.error(JSON.stringify({event:'account_email_failed',attempts:attempt+1})); return;
+            }
+        }
+    })();
     deliveries.add(task);
     void task.finally(() => deliveries.delete(task));
 }

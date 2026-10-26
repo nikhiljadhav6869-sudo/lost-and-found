@@ -13,6 +13,7 @@ const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=u
 export const server=http.createServer(async(req,res)=>{
  try{
   const url=new URL(req.url,publicOrigin);
+  if(url.pathname==='/healthz'){res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end('{"ok":true}');return;}
   if(url.pathname.startsWith('/api/')){
    const handler=(url.pathname.startsWith('/api/auth/')?auth:api)[req.method];
    if(!handler){res.writeHead(405);res.end();return;}
@@ -28,8 +29,9 @@ export const server=http.createServer(async(req,res)=>{
   }
   const headers={'Content-Type':mime[path.extname(file)]||'application/octet-stream','X-Content-Type-Options':'nosniff','Referrer-Policy':'same-origin'};
   if(url.pathname==='/sw.js'||url.pathname==='/manifest.webmanifest'||path.extname(file)==='.html')headers['Cache-Control']='no-cache';
+  if(url.pathname.startsWith('/assets/')&&file!==path.join(root,'index.html'))headers['Cache-Control']='public, max-age=31536000, immutable';
   res.writeHead(200,headers);fs.createReadStream(file).pipe(res);
- }catch(error){console.error('Request failed:',error.message);if(!res.headersSent)res.writeHead(500,{'Content-Type':'application/json'});res.end(JSON.stringify({error:'The server could not complete the request.'}));}
+ }catch(error){console.error(JSON.stringify({event:'request_failed',time:new Date().toISOString()}));if(!res.headersSent)res.writeHead(500,{'Content-Type':'application/json'});res.end(JSON.stringify({error:'The server could not complete the request.'}));}
 });
 server.listen(port,host,()=>console.log(`Lost & Found running at ${publicOrigin}`));
 const shutdown=()=>server.close(async()=>{await drainAuthEmails();process.exit(0);});

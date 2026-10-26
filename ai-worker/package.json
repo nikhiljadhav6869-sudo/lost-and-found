@@ -1,0 +1,16 @@
+{
+  "name": "lost-found-embedding-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "benchmark": "node benchmark.mjs",
+    "test:images": "node image-validation.mjs"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "3.8.1",
+    "sharp": "0.35.5"
+  },
+  "overrides": {
+    "sharp": "0.35.5"
+  }
+}

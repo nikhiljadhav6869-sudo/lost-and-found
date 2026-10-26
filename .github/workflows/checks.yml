@@ -12,6 +12,7 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci --include=dev
+      - run: npm audit --omit=dev --audit-level=high
       - run: npm run typecheck
       - run: npm run build:local
       - run: npm test
@@ -20,3 +21,27 @@ jobs:
       - run: npm run test:upgrades
       - run: npm run test:auth
       - run: npm run test:storage
+      - run: npm run test:intelligence
+      - run: npm run test:request
+      - run: npm run test:backup-storage
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
+
+  models:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: ai-worker/package-lock.json
+      - run: npm ci --prefix ai-worker
+      - run: npm audit --prefix ai-worker --omit=dev --audit-level=high
+      - uses: actions/cache@v4
+        with:
+          path: ai-worker/.cache
+          key: models-minilm-751bff3-clip-d15189d-q8-v1
+      - run: node ai-worker/image-validation.mjs
+      - run: node ai-worker/benchmark.mjs

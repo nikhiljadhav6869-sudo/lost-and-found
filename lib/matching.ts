@@ -13,7 +13,11 @@ export type Matchable = {
 // This is a similarity score, never a probability or proof of ownership.
 export const STRONG_MATCH_THRESHOLD = 75;
 export const isStrongMatch = (score: number) => Number.isFinite(score) && score > STRONG_MATCH_THRESHOLD;
-const tokens = (s: string) => new Set(s.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(w => w.length > 2 && !['the', 'and', 'with', 'lost', 'found', 'near', 'this', 'that', 'item'].includes(w)));
+export function similarityLabel(score: number, factors = 0) {
+    if (!Number.isFinite(score) || factors < 2) return 'Insufficient Information';
+    return isStrongMatch(score) ? 'High Similarity' : score >= 40 ? 'Medium Similarity' : 'Low Similarity';
+}
+const tokens = (s: string) => new Set(s.toLowerCase().replace(/[^\p{L}\p{N} ]/gu, ' ').split(/\s+/).filter(w => w.length > 2 && !['the', 'and', 'with', 'lost', 'found', 'near', 'this', 'that', 'item'].includes(w)));
 export function match(a: Matchable, b: Matchable) {
     if (a.type === b.type || a.id === b.id || !['Open', 'Claim Pending'].includes(a.status) || !['Open', 'Claim Pending'].includes(b.status))
         return { score: 0, reasons: [] as string[] };
@@ -51,3 +55,6 @@ export function match(a: Matchable, b: Matchable) {
 }
 export const categories = ['Electronics', 'Wallets', 'Bags', 'Keys', 'Documents', 'Clothing', 'Jewellery', 'Books', 'Sports equipment', 'Other'];
 export const checklist: Record<string, string[]> = { Electronics: ['Try your device’s built-in find feature.', 'Contact transit and venue lost-property desks.', 'Keep serial numbers private for ownership checks.'], Wallets: ['Retrace your most recent purchases.', 'Contact your card providers if cards are missing.', 'Never publish card numbers or ID photos.'], Keys: ['Check coat pockets, bags, and reception desks.', 'Describe the keyring, but keep key cuts private.', 'Do not post your home address.'], Documents: ['Contact the issuing organisation for next steps.', 'Keep document numbers and photos private.', 'Check secure reception and lost-property desks.'] };
+
+/** Old stored alerts remain intact; the UI no longer presents numeric certainty. */
+export const notificationText = (body: string) => body.replace(/^Strong match \(\d{1,3}% similarity\)/, "Potential match · High Similarity");

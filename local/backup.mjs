@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { checkedStorageKey } from './supabase-bucket.mjs';
-const tables = ['user','session','account','verification','reports','claims','messages','saved','notifications','blocks','flags','limits','uploads','match_alerts','upload_cleanup','local_migrations'];
+const tables = ['user','session','account','verification','reports','claims','messages','saved','notifications','blocks','flags','limits','uploads','match_alerts','upload_cleanup','embedding_jobs','embeddings','preferences','match_feedback','operations','search_jobs','local_migrations'];
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 const migrations = () => fs.readdirSync('drizzle').filter(name => name.endsWith('.sql')).sort().map(name => ({name,sql:fs.readFileSync(path.join('drizzle',name),'utf8')}));
 function key(password, salt) { if (typeof password !== 'string' || password.length < 20) throw new Error('Set BACKUP_PASSWORD to at least 20 characters; keep it separate from backups.'); return scryptSync(password,salt,32); }
@@ -12,6 +12,7 @@ export async function backupData(db, bucket, password) {
   const snapshot=await db.batch(tables.map(table=>db.prepare(`SELECT * FROM "${table}"`)));
   const data=Object.fromEntries(tables.map((table,index)=>[table,snapshot[index].results]));
   const images={}; let size=Buffer.byteLength(JSON.stringify(data));
+  if(size>64*1024*1024)throw new Error('Use provider export tools for backups larger than 64 MB.');
   for (const {id} of data.uploads) {
     checkedStorageKey(id);
     const object=await bucket.get(id);
@@ -42,7 +43,7 @@ export function restoreBackup(archive,password,directory) {
   try{
     sql.exec('PRAGMA foreign_keys=ON; CREATE TABLE local_migrations(name TEXT PRIMARY KEY); BEGIN IMMEDIATE;');
     for(const migration of current)sql.exec(migration.sql);
-    for(const table of tables){const allowed=new Set(sql.prepare(`PRAGMA table_info("${table}")`).all().map(c=>c.name));for(const row of payload.data[table]){
+    for(const table of tables){if(table==='embedding_jobs')sql.exec('DELETE FROM embedding_jobs');const allowed=new Set(sql.prepare(`PRAGMA table_info("${table}")`).all().map(c=>c.name));for(const row of payload.data[table]){
       const columns=Object.keys(row);if(!columns.length||columns.some(column=>!allowed.has(column)))throw new Error('Invalid backup columns.');
       sql.prepare(`INSERT INTO "${table}" (${columns.map(c=>'"'+c+'"').join(',')}) VALUES (${columns.map(()=>'?').join(',')})`).run(...columns.map(c=>row[c]));
     }}
