@@ -30,6 +30,7 @@
     "test:intelligence": "node tests/intelligence.mjs",
     "test:request": "node tests/request.mjs",
     "test:backup-storage": "node tests/backup-storage.mjs",
+    "test:windows-worker": "node tests/windows-worker.mjs",
     "verify": "node scripts/verify.mjs",
     "ai:worker": "node scripts/ai-worker.mjs",
     "ai:benchmark": "node ai-worker/benchmark.mjs",

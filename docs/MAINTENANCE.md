@@ -22,15 +22,18 @@ The new `npm run operations` command:
 1. Requires remote storage, a separate private `BACKUP_BUCKET` and `BACKUP_PASSWORD` of at least 20 characters.
 2. Encrypts and uploads the archive without overwrite.
 3. Reads the encrypted object back and compares its SHA-256 digest.
-4. Applies 14-day retention by default, preserving at least the two newest archives and all unrelated files.
-5. Runs safe cleanup only after the backup succeeds.
-6. Records success/failure without printing credentials.
+4. Decrypts and restores that downloaded archive in a new private temporary directory, checking the migration version, database references/integrity, and photo hashes. Deletes only this run's temporary directory, including after a failed restore. Logs table/photo counts, never restored records or credentials.
+5. Applies 14-day retention by default, preserving at least the two newest archives and all unrelated files. A failed download or restore prevents retention deletion and maintenance.
+6. Runs safe cleanup only after the backup and restore drill succeed.
+7. Records success/failure without printing credentials. Decrypted restore files are never uploaded as workflow artifacts.
 
-`.github/workflows/operations.yml` provides daily scheduling at 01:30 UTC (07:00 India time), plus manual dispatch. It is deliberately disabled until repository variable `OPERATIONS_ENABLED=true` is set. Configure repository secrets: `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SUPABASE_STORAGE_BUCKET`, `BACKUP_BUCKET`, `BACKUP_PASSWORD`. Restrict repository write access because workflow code can access these secrets.
+`.github/workflows/operations.yml` provides daily scheduling at 01:30 UTC (07:00 India time), plus manual dispatch. Scheduled runs are disabled until repository variable `OPERATIONS_ENABLED=true` is set; a manual run is permitted before that variable is enabled so the first backup can be verified. GitHub can delay scheduled jobs, so this is a daily target, not an exact-time guarantee. Configure repository secrets: `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SUPABASE_STORAGE_BUCKET`, `BACKUP_BUCKET`, `BACKUP_PASSWORD`. Restrict repository write access because workflow code can access these secrets.
 
 Create a separate private backup bucket allowing encrypted binary archives with adequate size limits; do not reuse the photo bucket. Keep the password separately from the archive/provider account. Review quotas: repeated full backups can exhaust a free storage allowance. Free service terms and capacity are not guaranteed for life.
 
-Run a manual backup and restore drill before enabling the repository variable. Verify GitHub workflow failure notifications in the operator account. No bucket, repository secrets or live backup schedule were provisioned during this code upgrade; remote archive upload/retention is tested against an isolated HTTP contract, not the user's real bucket.
+GitHub automatically disables scheduled workflows in public repositories after 60 days without repository activity. Review the latest successful backup regularly; if the schedule is disabled, open **Actions → Private backups and maintenance → Enable workflow**, then run it manually to verify recovery. See [GitHub's workflow lifecycle documentation](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/disable-and-enable-workflows). Do not create empty commits to keep a schedule alive.
+
+Run the workflow manually and confirm `encrypted_backup_verified` includes `restoreVerified: true` before enabling the repository variable. Every subsequent scheduled run repeats the restore drill. Verify GitHub workflow failure notifications in the operator account. This code does not provision a bucket, repository secrets or enable the live backup schedule automatically; those must be configured separately. Remote archive upload/retention and restore cleanup have focused isolated tests; only an actual successful workflow run establishes live backup readiness.
 
 ## Model jobs
 

@@ -10,27 +10,30 @@ concurrency:
   cancel-in-progress: false
 jobs:
   maintain:
-    if: vars.OPERATIONS_ENABLED == 'true'
+    if: github.event_name == 'workflow_dispatch' || vars.OPERATIONS_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      STORAGE_MODE: remote
-      SEED_DEMO: 'false'
-      TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
-      TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
-      SUPABASE_STORAGE_BUCKET: ${{ secrets.SUPABASE_STORAGE_BUCKET }}
-      BACKUP_BUCKET: ${{ secrets.BACKUP_BUCKET }}
-      BACKUP_PASSWORD: ${{ secrets.BACKUP_PASSWORD }}
-      BACKUP_RETENTION_DAYS: '14'
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: npm
       - run: npm ci --include=dev
-      - run: node scripts/operations.mjs
+      - name: Back up, restore-check, and maintain
+        run: node scripts/operations.mjs
+        env:
+          STORAGE_MODE: remote
+          SEED_DEMO: 'false'
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          SUPABASE_STORAGE_BUCKET: ${{ secrets.SUPABASE_STORAGE_BUCKET }}
+          BACKUP_BUCKET: ${{ secrets.BACKUP_BUCKET }}
+          BACKUP_PASSWORD: ${{ secrets.BACKUP_PASSWORD }}
+          BACKUP_RETENTION_DAYS: '14'
 # Enable only after a manual successful run with dedicated repository secrets.
 # Failure notification uses GitHub's workflow notification settings.

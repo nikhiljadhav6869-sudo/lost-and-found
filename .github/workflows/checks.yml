@@ -45,3 +45,19 @@ jobs:
           key: models-minilm-751bff3-clip-d15189d-q8-v1
       - run: node ai-worker/image-validation.mjs
       - run: node ai-worker/benchmark.mjs
+
+  windows-worker:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Validate protected worker setup without installing a task
+        shell: pwsh
+        run: |
+          $env:WORKER_TEST_POWERSHELL = (Get-Command pwsh).Source
+          node tests/windows-worker.mjs

@@ -12,13 +12,15 @@ export function createBackupStore({storageUrl,secretKey,bucket,photoBucket},fetc
  }
  async function verifyPrivate(){const r=await request('/bucket/'+encodeURIComponent(bucket));if((await r.json()).public!==false)throw new Error('Backup bucket must be private.');}
  return {
-  async save(bytes,time=new Date()){
+  async save(bytes,time=new Date(),{verify}={}){
+   if(verify!==undefined&&typeof verify!=='function')throw new Error('Backup verification must be a function.');
    await verifyPrivate();const name='lfbackup-'+time.toISOString().slice(0,10)+'-'+randomUUID()+'.lfbackup';
    await request('/object/'+encodeURIComponent(bucket)+'/'+name,{method:'POST',headers:{'Content-Type':'application/octet-stream','x-upsert':'false','Cache-Control':'private, no-store'},body:bytes});
    // Read back the encrypted archive before any retention deletion.
    const received=new Uint8Array(await (await request('/object/'+encodeURIComponent(bucket)+'/'+name)).arrayBuffer());
    const digest=b=>createHash('sha256').update(b).digest('hex');
    if(digest(bytes)!==digest(received))throw new Error('Backup verification failed; retention was not applied.');
+   if(verify)await verify(Buffer.from(received));
    return name;
   },
   async prune({days=14,time=Date.now()}={}){

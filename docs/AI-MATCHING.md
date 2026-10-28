@@ -29,6 +29,8 @@ npm run ai:worker -- --watch
 
 Supply the same remote database and private photo settings as the web app through the worker host's secrets. Do not copy them into tracked files. A trusted personal computer can run the worker without a new hosting bill while it is awake. A continuously available worker is an external hosting requirement. No worker is deployed by installing the web app.
 
+For protected configuration and automatic startup at Windows sign-in, see [the local worker guide](LOCAL-WORKER.md). A running worker polls the queue every 15 seconds and records availability every five minutes to keep routine database writes bounded.
+
 ## Ranking
 
 The fallback retains category 30, word overlap 25, colour 15, brand 10, compatible date 10 and shared location words 10. Unicode letters are recognized. For compatible neural embeddings, default weights are public details 0.40, semantic text 0.35, image 0.25. Missing images contribute no weight; remaining weights are normalized.
