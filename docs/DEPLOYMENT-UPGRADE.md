@@ -19,11 +19,11 @@ The web release is usable without a worker. It uses explainable public-detail ma
 
 On a separate trusted Node 24 host, install root dependencies and `npm ci --prefix ai-worker`, supply the remote database/private-photo environment through secrets, then run `npm run ai:worker -- --watch`. Follow [AI-MATCHING.md](AI-MATCHING.md) for pinned model versions, resource measurements and retry policy. Model downloads require outbound HTTPS. Cache files and credentials are ignored by Git.
 
-A personal computer can perform queued work while awake without buying a hosting plan. Availability depends on that computer. Continuous processing needs suitable infrastructure; the current 512 MB web instance is below the observed 661 MB worker footprint. No worker has been provisioned by this release.
+A personal computer can perform queued work while awake without buying a hosting plan. Availability depends on that computer. Continuous processing needs suitable infrastructure; the current 512 MB web instance is below the observed 661 MB worker footprint. The Windows worker was activated separately on 29 October 2026; see [verified operations status](OPERATIONS-STATUS.md).
 
 ## Backups and maintenance
 
-The daily workflow is shipped disabled. Follow [MAINTENANCE.md](MAINTENANCE.md) to create a separate private bucket and install repository secrets. Perform a manual encrypted upload/readback and restore drill before setting `OPERATIONS_ENABLED=true`. Check quotas and GitHub failure notifications. Never put archive passwords or service keys in committed configuration.
+For a new installation, the daily workflow remains gated until repository variable `OPERATIONS_ENABLED=true` is set. Follow [MAINTENANCE.md](MAINTENANCE.md) to create a separate private bucket and install repository secrets. Perform a manual encrypted upload/readback and restore drill before enabling it. The current production repository completed this procedure on 29 October 2026 and targets 07:00 India time daily. Check quotas and GitHub failure notifications. Never put archive passwords or service keys in committed configuration.
 
 ## Hosting choices
 

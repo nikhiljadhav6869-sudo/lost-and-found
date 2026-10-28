@@ -50,11 +50,16 @@ Final portable browser build: main JavaScript 263.50 kB (81.56 kB gzip); stylesh
 
 No test group failed in the final local run. An intermediate sandboxed run could not connect to localhost or launch Edge; rerunning with approved network/browser access passed. The separate image-header regression suite and isolated schema-generation check also passed. Expected negative-test messages from Better Auth/provider rejection are not suite failures. The application workflow tests use an isolated Playwright browser; the existing Render dashboard is checked separately through browser control.
 
+## Live operations activation — 29 October 2026
+
+The Windows worker was installed with protected credentials, verified through the live availability endpoint, and stopped/restarted with child-process cleanup confirmed. A temporary owner-scoped production search produced real 384-dimensional text and 512-dimensional image vectors in approximately 92 seconds including initialization; the test search was then removed. This is an integration check, not an accuracy or latency guarantee.
+
+The [first production backup workflow](https://github.com/nikhiljadhav6869-sudo/lost-and-found/actions/runs/40755202045) passed encrypted upload, read-back, and an isolated restore of 22 tables and one photo. The private archive was independently confirmed in storage, and daily scheduling was enabled. [Activation details and limits](OPERATIONS-STATUS.md) document computer availability and schedule monitoring.
+
 ## Still requiring external validation
 
 - Real Brevo inbox delivery/bounces after this release, especially the institutional domain. Provider acceptance is not delivery.
-- A live worker with production credentials, restart/retry observability and representative labelled item photos. No live worker has been installed.
-- A separate private backup bucket, repository secrets, encrypted upload/restore drill and enabled scheduler. Remote object behavior is contract-tested, not tested against the real backup bucket.
+- Representative labelled item photos, matching accuracy, sustained worker performance, and recovery across extended outages.
 - Android Chrome/installed PWA, iPhone Safari/home-screen app and a complete physical two-person return. See [PWA-AND-MOBILE.md](PWA-AND-MOBILE.md).
 - Signed Android package/Digital Asset Links; Docker image execution; high-concurrency load; independent accessibility/security review.
 - This upgrade's primary verified target is the portable Node deployment. The Cloudflare/Vinext deployment target was not rebuilt or deployed in this verification run.

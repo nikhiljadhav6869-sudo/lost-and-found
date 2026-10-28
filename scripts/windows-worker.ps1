@@ -5,7 +5,8 @@ param(
     [string]$Profile = 'windows-worker',
     [string]$NodePath,
     [switch]$DryRun,
-    [switch]$ForgetCredentials
+    [switch]$ForgetCredentials,
+    [switch]$AllowBattery
 )
 $ErrorActionPreference = 'Stop'
 $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
@@ -89,6 +90,10 @@ try {
         $trigger = New-ScheduledTaskTrigger -AtLogOn -User $sid
         $principal = New-ScheduledTaskPrincipal -UserId $sid -LogonType Interactive -RunLevel Limited
         $settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 5) -StartWhenAvailable
+        if ($AllowBattery) {
+            $settings.DisallowStartIfOnBatteries = $false
+            $settings.StopIfGoingOnBatteries = $false
+        }
         $null = Register-ScheduledTask -TaskName $taskName -Action $actionSpec -Trigger $trigger -Principal $principal -Settings $settings -Description 'Lost & Found private AI processing while this user is signed in. No wake timers or administrator privileges.'
         [ordered]@{installed=$true;taskName=$taskName} | ConvertTo-Json -Compress
     }

@@ -4,7 +4,7 @@
 
 All 12 local verification groups passed, including a portable production build, authentication/storage/return races, background-job privacy and headless mobile-width browser workflows. Real pinned MiniLM/CLIP inference also passed a separate local smoke benchmark. See [the complete current report](docs/IMPROVEMENT-REPORT.md), [test evidence](docs/TEST-REPORT.md) and [deployment guide](docs/DEPLOYMENT-UPGRADE.md).
 
-AI worker hosting, live backup schedule provisioning, physical-phone acceptance and signed Android packaging remain outstanding. The entries below are historical records from earlier releases; earlier statements about absent AI or unavailable browser checks describe those earlier checkpoints, not the new source.
+The AI worker and daily private backups were activated on 29 October 2026. Live text/image inference, worker restart, and a remote backup restoring 22 tables and one photo passed. See [operations activation evidence](docs/OPERATIONS-STATUS.md). AI availability depends on this Windows computer remaining awake and signed in. Physical-phone acceptance and signed Android packaging remain outstanding. The entries below are historical records from earlier releases.
 
 ## Historical implementation and verification
 
