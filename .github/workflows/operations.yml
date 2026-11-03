@@ -1,12 +1,18 @@
 name: Private backups and maintenance
+run-name: ${{ inputs.alert_drill && 'Backup notification drill' || 'Private backups and maintenance' }}
 on:
   workflow_dispatch:
+    inputs:
+      alert_drill:
+        type: boolean
+        description: Simulate a failed backup without accessing production data
+        default: false
   schedule:
     - cron: '30 1 * * *'
 permissions:
   contents: read
 concurrency:
-  group: private-operations
+  group: ${{ inputs.alert_drill && 'private-operations-drill' || 'private-operations' }}
   cancel-in-progress: false
 jobs:
   maintain:
@@ -14,6 +20,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      - name: Simulate failed backup for the notification drill
+        if: inputs.alert_drill
+        run: exit 1
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
@@ -36,4 +45,4 @@ jobs:
           BACKUP_PASSWORD: ${{ secrets.BACKUP_PASSWORD }}
           BACKUP_RETENTION_DAYS: '14'
 # Enable only after a manual successful run with dedicated repository secrets.
-# Failure notification uses GitHub's workflow notification settings.
+# Operator alerts watches unsuccessful completions on main.

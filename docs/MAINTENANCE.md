@@ -42,3 +42,11 @@ Run `npm run ai:worker -- --watch` on a separate capable host. Three failed atte
 ## Local demonstration reset
 
 `SEED_DEMO=true` and local storage are required for `node scripts/demo-reset.mjs`. Only the known sample IDs owned by `demo-community` with `demo=1` are reset. Real records colliding with those IDs are preserved. The command refuses remote production storage. There are no public demo passwords or seeded login accounts.
+
+## Operator failure alerts
+
+The Operator alerts workflow watches unsuccessful backup and maintenance runs on main. It also checks hourly for three or more terminal account-email failures in the preceding 24 hours. Retries and provider-accepted requests are excluded. A failed monitor run raises a separate alert. These checks detect application delivery errors. They cannot detect an email that the provider accepts and the recipient's inbox later filters.
+
+An incident creates a generic GitHub issue assigned to the repository owner. While it stays open, the same incident type is suppressed. Review the linked run or the private provider logs and close the issue after investigation. Public issues contain no recipient addresses, tokens, message bodies or backup contents. GitHub inbox and email routing follow the owner's notification settings.
+
+For a backup drill, manually run Private backups and maintenance on main with alert_drill enabled. This run intentionally fails before accessing production storage and the monitor creates a test issue. For the email drill, manually run Operator alerts on main with email-drill. It checks the threshold against in-memory events without sending account email. Use check mode to query actual email health.

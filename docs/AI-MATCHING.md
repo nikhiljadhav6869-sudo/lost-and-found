@@ -52,3 +52,25 @@ Relevant/not-relevant feedback is stored for evaluation. No automatic retraining
 The smoke benchmark measured 949 ms for the first combined inference with cached downloads, 105 ms for three warm calls, and approximately 661 MB resident memory on this Windows machine. The earbuds paraphrase cosine was 0.660 versus 0.148 for an unrelated scarf; repeating the same synthetic image gave 1.000 within floating-point precision. These few fixtures establish functioning inference, not real-world accuracy. CLIP can confuse objects of the same class; averaging photos can lose distinguishing detail. MiniLM is primarily suited to English.
 
 The current 512 MB Render web service is too small for this observed worker footprint. Do not start the worker inside that web process. A labelled, diverse real-item evaluation set, false-positive review and sustained production latency/resource tests remain required before claiming matching quality.
+
+## Labelled photographs and queue load, 3 November 2026
+
+The Windows CPU evaluation used the [Columbia COIL-20 processed collection](https://www.cs.columbia.edu/CAVE/software/softlib/coil-20.php). One front view of each of 20 physical objects formed the gallery. Four held-out views per object (45, 90, 180 and 270 degrees) supplied 80 queries and 1,600 comparisons. The pinned CLIP model ranked the correct item first 57/80 times and in the top three 64/80 times. The dataset has controlled backgrounds and grayscale objects, including toy cars, blocks, cups and containers. Campus phone-photo accuracy remains unmeasured.
+
+The production multimodal scorer was run at its existing strict >75 threshold with matching campus location, date and category. Captions were constructed for the experiment. Object IDs and view numbers were excluded from the inputs.
+
+| Report details | Genuine pairs alerted / 80 | Missed / 80 | Different-object pairs alerted / 1,520 |
+|---|---:|---:|---:|
+| Identical generic title and description | 77 | 3 | 900 |
+| Short object-family descriptions, paraphrased between lost and found | 8 | 72 | 0 |
+
+The second condition included 96 lookalike comparisons sharing an object family. None crossed the threshold. Together the two conditions show that both excessive alerts and missed matches are possible. A useful next dataset would contain independently written campus reports and phone photos captured by different people.
+
+Ten isolated accounts then submitted photo-and-text searches concurrently through the app handlers and durable queue. The requests were accepted in 91 ms. With arrival immediately after a poll, the first five results were observed after 21.2 seconds and the remaining five after 38.7 seconds. All ten finished. The test used local SQLite and file storage, a 15-second polling interval, five searches per batch, real model inference, and result checks after each batch. It excludes remote database and storage latency, network delays and competing report jobs.
+
+To reproduce, install the locked root and AI dependencies, extract the official processed COIL-20 ZIP outside Git, and run these commands from the project root. The archive used had SHA-256 517c5594820eb40066ba0ff6842e7f09392bf7fde849bf9cb9c28445b0f29e88.
+
+```sh
+node ai-worker/evaluate-photos.mjs <directory-containing-obj1__0.png>
+node ai-worker/queue-load.mjs <directory-containing-obj1__0.png>
+```
