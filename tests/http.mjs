@@ -35,6 +35,12 @@ try {
     assert.match(html, /rel="manifest"[^>]*href="\/manifest.webmanifest"/);
     assert.match(html, /rel="apple-touch-icon"/);
     const manifestResponse = await request('/manifest.webmanifest');
+    const linksResponse = await request('/.well-known/assetlinks.json');
+    assert.ok(linksResponse.type.startsWith('application/json'));
+    const [association] = linksResponse.data;
+    assert.ok(association.relation.includes('delegate_permission/common.handle_all_urls'));
+    assert.equal(association.target.package_name, 'com.nikhiljadhav.lostandfound');
+    assert.match(association.target.sha256_cert_fingerprints[0], /^(?:[0-9A-F]{2}:){31}[0-9A-F]{2}$/);
     assert.ok(manifestResponse.type.startsWith('application/manifest+json'));
     const manifest = JSON.parse(new TextDecoder().decode(manifestResponse.data));
     assert.equal(manifest.display, 'standalone');

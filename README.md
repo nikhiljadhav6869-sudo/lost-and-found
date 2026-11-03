@@ -12,7 +12,7 @@ Scan this QR code to open the installation link:
 
 ## Production optimization update
 
-The upgrade adds clearer authentication recovery, qualitative match labels, separate demo browsing, optional real image/text inference, semantic/photo search, public-only drafts, notification preferences, operational visibility and encrypted backup scheduling tools. See the [eight-problem improvement report](docs/IMPROVEMENT-REPORT.md), [test evidence](docs/TEST-REPORT.md) and [upgrade deployment guide](docs/DEPLOYMENT-UPGRADE.md). AI inference is active through a Windows worker while its computer is awake and signed in. Daily private backups are enabled for 07:00 India time; see [verified operations status](docs/OPERATIONS-STATUS.md). Physical-phone and signed Android-package validation remain outstanding.
+The upgrade adds clearer authentication recovery, qualitative match labels, separate demo browsing, optional real image/text inference, semantic/photo search, public-only drafts, notification preferences, operational visibility and encrypted backup scheduling tools. See the [eight-problem improvement report](docs/IMPROVEMENT-REPORT.md), [test evidence](docs/TEST-REPORT.md) and [upgrade deployment guide](docs/DEPLOYMENT-UPGRADE.md). AI inference is active through a Windows worker while its computer is awake and signed in. Daily private backups are enabled for 07:00 India time; see [verified operations status](docs/OPERATIONS-STATUS.md). The [signed Android APK](https://github.com/nikhiljadhav6869-sudo/lost-and-found/releases/download/android-v1.0.0/Lost-and-Found-1.0.0.apk) is available for testing on Android 7.0 and newer. Installation and launch passed on an emulator. Physical-phone validation remains outstanding.
 
 ## Production setup update
 

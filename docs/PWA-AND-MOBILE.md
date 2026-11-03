@@ -2,7 +2,7 @@
 
 Share [the installation link](https://lost-and-found-yzfl.onrender.com/?install=1). Supporting browsers expose a native installation prompt after the user clicks Install App. Other browsers get Android Chrome/iPhone Safari instructions. Windows Chrome/Edge installation uses the browser menu/address-bar option. Installed standalone sessions hide the banner.
 
-A website cannot silently install itself. Browser policy, OS version and user settings determine whether a native prompt appears. There is no released APK or App Store package. See [optional Android packaging](../android/README.md).
+A website cannot silently install itself. Browser policy, OS version and user settings determine whether a native prompt appears. Android 7.0+ users can also [download the signed Android test release](https://github.com/nikhiljadhav6869-sudo/lost-and-found/releases/download/android-v1.0.0/Lost-and-Found-1.0.0.apk). Physical-phone acceptance is pending. See [Android packaging](../android/README.md).
 
 The manifest has standalone display, local correctly sized normal/maskable icons, a stable application ID and root scope. Service-worker registration uses normal update activation; an active form is not forcibly refreshed. Cache v2 stores only the static reconnect/safe-return guide. No account, report, photo, message, API response or live personalized page is cached. An offline indicator tells users to keep unsent forms open. Public draft persistence is optional and restricted to the current browser tab; private evidence/photos are excluded.
 
