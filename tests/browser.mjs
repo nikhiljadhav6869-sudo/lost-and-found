@@ -1,3 +1,4 @@
+import {checkMobileReturn} from './mobile-return.mjs';
 import {chromium} from '@playwright/test';
 import {spawn} from 'node:child_process';
 import fs from 'node:fs';
@@ -68,4 +69,5 @@ try{
  await context.setOffline(false);
  assert.deepEqual(errors,[]);
  console.log('PASS browser mobile-width layout, offline status and no uncaught page errors');
+ await checkMobileReturn(browser, origin);
 }finally{if(browser)await browser.close();server.kill();}

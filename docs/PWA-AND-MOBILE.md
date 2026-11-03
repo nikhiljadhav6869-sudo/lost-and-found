@@ -6,7 +6,13 @@ A website cannot silently install itself. Browser policy, OS version and user se
 
 The manifest has standalone display, local correctly sized normal/maskable icons, a stable application ID and root scope. Service-worker registration uses normal update activation; an active form is not forcibly refreshed. Cache v2 stores only the static reconnect/safe-return guide. No account, report, photo, message, API response or live personalized page is cached. An offline indicator tells users to keep unsent forms open. Public draft persistence is optional and restricted to the current browser tab; private evidence/photos are excluded.
 
-## Physical device checklist — unverified in this upgrade
+## Two-account browser check
+
+On 3 November 2026 the local production build passed the two-person return test in headless Edge using separate touch-enabled sessions at 375 and 390 pixels wide. Each participant published a report and received one high-similarity alert. The finder attached a PNG through the report form. Both participants exchanged private messages and agreed to the test handover. A signed-out request for the claim returned HTTP 401. The public found report showed **Return Arranged** after the finder confirmed and **Returned** after the owner confirmed. Both conversations showed the completed return.
+
+Run `npm run build:local` followed by `npm run test:browser` to repeat this check with isolated accounts and storage. Camera capture, native installation and real-phone interaction still need the checks below.
+
+## Physical device checklist
 
 Record device, OS, browser, build commit, date, and pass/fail evidence for each row:
 
