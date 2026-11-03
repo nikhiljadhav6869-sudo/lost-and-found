@@ -1,0 +1,14 @@
+[
+  {
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.nikhiljadhav.lostandfound",
+      "sha256_cert_fingerprints": [
+        "A9:E5:49:E8:4C:82:48:AB:C2:47:85:6B:61:C5:60:2E:21:1D:3F:D1:EE:99:57:0E:8D:9D:F5:AC:F6:ED:88:A8"
+      ]
+    },
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ]
+  }
+]

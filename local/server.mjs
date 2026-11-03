@@ -14,6 +14,12 @@ export const server=http.createServer(async(req,res)=>{
  try{
   const url=new URL(req.url,publicOrigin);
   if(url.pathname==='/healthz'){res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end('{"ok":true}');return;}
+  if(url.pathname==='/.well-known/assetlinks.json'){
+   const association=path.join(root,'.well-known','assetlinks.json');
+   if(!fs.existsSync(association)){res.writeHead(404);res.end();return;}
+   res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-cache','X-Content-Type-Options':'nosniff'});
+   fs.createReadStream(association).pipe(res);return;
+  }
   if(url.pathname.startsWith('/api/')){
    const handler=(url.pathname.startsWith('/api/auth/')?auth:api)[req.method];
    if(!handler){res.writeHead(405);res.end();return;}
