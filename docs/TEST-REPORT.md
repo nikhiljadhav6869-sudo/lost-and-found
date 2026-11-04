@@ -65,3 +65,11 @@ The [first production backup workflow](https://github.com/nikhiljadhav6869-sudo/
 - This upgrade's primary verified target is the portable Node deployment. The Cloudflare/Vinext deployment target was not rebuilt or deployed in this verification run.
 
 Deployment/CI results after publication are recorded separately; passing local tests alone does not prove the live service has updated.
+
+## Recovery, matching and accessibility — 4 November 2026
+
+All 12 groups in `node scripts/verify.mjs` passed at 09:04 UTC, including the production build, authentication recovery, storage transactions, intelligence, backup restoration and browser workflows. Tests use isolated synthetic data. Password reset now explicitly checks that both independently established sessions are revoked, alongside the existing one-use/expired token, old-password rejection, redirect validation and bounded mail retry cases. No fresh messages were sent to real inboxes; Gmail and VIT delivery remains unconfirmed.
+
+Automated axe-core 4.14 checks for WCAG 2 A/AA and 2.1 AA passed on the home page in both themes, login, registration, installation and report dialogs, and the mobile home layout. Muted text/footer contrast and modal keyboard focus were corrected. Tab containment, Escape and focus restoration passed. The two-account mobile claim/return browser flow also passed. Automated results do not establish full WCAG conformance or replace assistive-technology testing.
+
+Generic reports remain discoverable but cannot generate a score above 75 without an item description, category, colour or brand. An integration test verifies no alert is created for these reports after inference; informative high-similarity reports retain the existing two-owner notification behavior. See [the matching evaluation](AI-MATCHING.md) for measured limitations.

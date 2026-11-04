@@ -11,8 +11,13 @@ const publicOrigin=process.env.APP_ORIGIN||`http://${host}:${port}`;
 const root=path.resolve('dist/local');
 const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.webp':'image/webp','.ico':'image/x-icon','.webmanifest':'application/manifest+json; charset=utf-8'};
 export const server=http.createServer(async(req,res)=>{
+ res.setHeader('X-Frame-Options','SAMEORIGIN');
+ res.setHeader('Content-Security-Policy',"frame-ancestors 'self'; base-uri 'self'; object-src 'none'");
+ res.setHeader('X-Content-Type-Options','nosniff');
+ res.setHeader('Referrer-Policy','same-origin');
  try{
   const url=new URL(req.url,publicOrigin);
+  if(url.origin!==new URL(publicOrigin).origin){res.writeHead(400);res.end('Invalid request origin');return;}
   if(url.pathname==='/healthz'){res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end('{"ok":true}');return;}
   if(url.pathname==='/.well-known/assetlinks.json'){
    const association=path.join(root,'.well-known','assetlinks.json');

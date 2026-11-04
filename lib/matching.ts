@@ -18,6 +18,16 @@ export function similarityLabel(score: number, factors = 0) {
     return isStrongMatch(score) ? 'High Similarity' : score >= 40 ? 'Medium Similarity' : 'Low Similarity';
 }
 const tokens = (s: string) => new Set(s.toLowerCase().replace(/[^\p{L}\p{N} ]/gu, ' ').split(/\s+/).filter(w => w.length > 2 && !['the', 'and', 'with', 'lost', 'found', 'near', 'this', 'that', 'item'].includes(w)));
+const genericWords = new Set(['small','large','household','object','thing','something','belonging','belongings','campus','library','college','university','school','place','please','help','return','missing','someone','somebody']);
+export function hasItemIdentity(r: Pick<Matchable,'category'|'colour'|'brand'|'title'|'description'>) {
+    return r.category !== 'Other' || !!r.colour.trim() || !!r.brand.trim() ||
+        [...tokens(r.title + ' ' + r.description)].some(word => !genericWords.has(word));
+}
+export function descriptionScore(a: Matchable, b: Matchable) {
+    const at = tokens(a.title + ' ' + a.description), bt = tokens(b.title + ' ' + b.description);
+    const overlap = [...at].filter(t => bt.has(t)).length;
+    return Math.round(25 * overlap / Math.max(1, Math.min(at.size, bt.size)));
+}
 export function match(a: Matchable, b: Matchable) {
     if (a.type === b.type || a.id === b.id || !['Open', 'Claim Pending'].includes(a.status) || !['Open', 'Claim Pending'].includes(b.status))
         return { score: 0, reasons: [] as string[] };
@@ -27,10 +37,9 @@ export function match(a: Matchable, b: Matchable) {
         score += 30;
         reasons.push('Same category');
     }
-    const at = tokens(a.title + ' ' + a.description), bt = tokens(b.title + ' ' + b.description);
-    const overlap = [...at].filter(t => bt.has(t)).length;
-    if (overlap) {
-        score += Math.round(25 * overlap / Math.max(1, Math.min(at.size, bt.size)));
+    const sharedDescription = descriptionScore(a,b);
+    if (sharedDescription) {
+        score += sharedDescription;
         reasons.push('Shared description details');
     }
     if (a.colour && a.colour.toLowerCase() === b.colour.toLowerCase()) {
@@ -51,6 +60,7 @@ export function match(a: Matchable, b: Matchable) {
         score += 10;
         reasons.push('Overlapping location');
     }
+    if (!hasItemIdentity(a) || !hasItemIdentity(b)) score = Math.min(score, STRONG_MATCH_THRESHOLD);
     return { score, reasons };
 }
 export const categories = ['Electronics', 'Wallets', 'Bags', 'Keys', 'Documents', 'Clothing', 'Jewellery', 'Books', 'Sports equipment', 'Other'];

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {once} from 'node:events';
+import {request as httpRequest} from 'node:http';
 import {randomBytes} from 'node:crypto';
 import {server} from '../.sites-runtime/http-server.mjs';
 
@@ -24,8 +25,17 @@ async function request(path, body, expected = 200) {
   return {data, type, headers: response.headers};
 }
 try {
+  const foreignOrigin = await new Promise((resolve,reject)=>{
+    const request = httpRequest(origin, {path:'https://untrusted.example/api/auth/get-session'}, response=>{
+      response.resume(); resolve(response.statusCode);
+    });
+    request.on('error',reject); request.end();
+  });
+  assert.equal(foreignOrigin,400);
   if (fs.existsSync('dist/local/index.html')) {
     const page = await request('/');
+    assert.equal(page.headers.get('x-frame-options'),'SAMEORIGIN');
+    assert.match(page.headers.get('content-security-policy'),/frame-ancestors 'self'/);
     assert.ok(page.type.startsWith('text/html'));
     const html = new TextDecoder().decode(page.data);
     assert.ok(html.includes('Lost &amp; Found') || html.includes('Lost & Found'));

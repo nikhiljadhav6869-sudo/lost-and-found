@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ArrowRight, Loader2, Lock, X } from 'lucide-react';
 
 import { requestJson, RequestError as AuthError } from '../lib/request';
+import { keepDialogFocus } from '../lib/dialog-focus';
 
 type Capabilities = { passwordReset: boolean; emailVerification: boolean; emailVerificationRequired: boolean };
 type Props = { mode: string; onModeChange: (mode: string) => void; onAuthenticated: () => void | Promise<void> };
@@ -109,7 +110,7 @@ export default function AccountAccess({ mode, onModeChange, onAuthenticated }: P
     const labels: Record<string, string> = { login: 'Sign in', register: 'Create account', forgot: 'Send reset link', verify: 'Send verification link', reset: 'Save new password' };
     const emailUnavailable = (mode === 'forgot' && capabilities?.passwordReset === false) || (mode === 'verify' && capabilities?.emailVerification === false);
     const close = () => { if (!busy) changeMode(''); };
-    return <dialog className="modal" ref={dialog} aria-labelledby="account-access-title" onCancel={event => { event.preventDefault(); close(); }} onClick={event => { if (event.target === dialog.current) close(); }}>
+    return <dialog className="modal" ref={dialog} aria-labelledby="account-access-title" onKeyDown={keepDialogFocus} onCancel={event => { event.preventDefault(); close(); }} onClick={event => { if (event.target === dialog.current) close(); }}>
         <header><h2 id="account-access-title">{titles[mode] || titles.login}</h2><button type="button" className="icon-btn" aria-label="Close account dialog" disabled={busy} onClick={close}><X /></button></header>
         <p className="modal-intro">{descriptions[mode] || descriptions.login}</p>
         {error && <div className="alert error" role="alert">{error}</div>}

@@ -22,7 +22,9 @@ const captions = {
   tub:['plastic tub','round plastic container'],
 };
 const captionVectors = new Map();
-const views = [9,18,36,54]; // COIL-20 view indices in 5-degree increments.
+const views = process.argv[3] ? process.argv[3].split(',').map(Number) : [9,18,36,54];
+if (!views.length || views.some(view=>!Number.isInteger(view)||view<1||view>71) || new Set(views).size!==views.length)
+  throw Error('Use distinct COIL-20 view indices from 1 through 71. Gallery view zero is excluded.');
 let imageTop1 = 0, imageTop3 = 0;
 const latency = [], burstWait = [];
 let firstMs;

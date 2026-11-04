@@ -74,3 +74,13 @@ To reproduce, install the locked root and AI dependencies, extract the official 
 node ai-worker/evaluate-photos.mjs <directory-containing-obj1__0.png>
 node ai-worker/queue-load.mjs <directory-containing-obj1__0.png>
 ```
+
+## Generic-report alert safeguard — 4 November 2026
+
+Reports in category Other with no colour/brand and only generic English wording, such as "Small household object" / "Found on campus", are now capped at 75 in both fallback and neural scoring. They remain in discovery but do not trigger the strict >75 alert. The report form asks for identifying details. This is a conservative wording heuristic, not an object detector; it can suppress genuine matches with sparse descriptions and does not cover every language or generic phrase.
+
+A further evaluation used five additional angles (15, 75, 135, 225 and 315 degrees) of the same 20 COIL-20 objects: 100 queries and 2,000 comparisons. Image retrieval ranked the right object first 76/100 times and in the top three 87/100 times. With generic report text the safeguard produced zero alerts, including for all 100 genuine pairs. With the existing short object-family captions, 8/100 genuine pairs alerted and none of 1,900 different-object pairs alerted, including 120 lookalike comparisons. These are additional angles of the same controlled collection, not independent campus validation. The weights and >75 threshold remain unchanged; low recall with sparse reports remains unresolved.
+
+Rerunning the original 80 queries with the final safeguard reduced the generic-text false alerts from 900 to zero, while also suppressing all 77 previously alerted genuine pairs. The object-family caption condition was unchanged: 8 genuine alerts, 72 missed pairs and zero false alerts. This tradeoff is intentional: generic wording should not establish a high-similarity notification.
+
+To select evaluation angles, pass comma-separated COIL-20 view indices as the third argument, for example `3,15,27,45,63`. View zero is reserved for the gallery and excluded from queries.

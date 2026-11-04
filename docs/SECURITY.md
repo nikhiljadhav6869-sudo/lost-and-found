@@ -25,3 +25,9 @@ No production records were removed or rewritten during local verification. Tests
 The final npm production audit reported zero known advisories for both the web package and the separate AI worker. Updated Next.js to 16.4.3, Zod to 4.6.7, esbuild to 0.28.1 and sharp to 0.35.5, refreshed affected transitive packages, and pinned the vulnerable transitive WebSocket/build-tool paths to patched versions. Full application tests, isolated schema generation and real model inference passed afterward. CI now audits production dependencies and separately checks real model inference. This is a dated registry audit, not a guarantee against unknown vulnerabilities or an audit of the optional Android toolchain.
 
 Relevant advisories: [Next.js image optimization](https://github.com/advisories/GHSA-2464-fhr4-w9xw), [Zod constrained collections](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5). The portable Node service does not expose Next image-optimization routes, but the dependency was patched for the retained framework target as well.
+
+## Automated review — 4 November 2026
+
+Production dependency audits again reported zero known advisories for the web application and AI worker. The portable HTTP server now supplies anti-framing, MIME-sniffing, same-origin referrer and restricted base/object CSP headers for documents as well as APIs. Absolute request targets with a different origin are rejected before authentication routing. Regression tests cover these headers and rejection behavior.
+
+The complete automated suite passed, including ownership/participant access, cross-origin mutations, private media, backup restore protection and password-reset revocation of two active sessions. No production credentials or real account passwords were changed. This review is not an independent penetration test; unknown vulnerabilities and the broader manual review limitations above remain.

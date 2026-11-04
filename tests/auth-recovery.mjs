@@ -25,6 +25,9 @@ try{
   await call('sign-in/email',{email,password});assert.ok(cookie);
   console.log('PASS verified email required, provider request and real verification callback');
   const oldCookie=cookie;
+  await call('sign-in/email',{email,password});
+  const secondCookie=cookie;
+  assert.notEqual(secondCookie,oldCookie);
   const known=await (await call('request-password-reset',{email,redirectTo:'/?auth=reset'})).json();await drainAuthEmails();
   const reset=link(sent.at(-1));const redirect=await auth.GET(new Request(reset));assert.equal(redirect.status,302);
   const token=new URL(redirect.headers.get('location')).searchParams.get('token');assert.ok(token);
@@ -33,6 +36,7 @@ try{
   const nextPassword=randomBytes(18).toString('base64url');await call('reset-password',{token,newPassword:nextPassword});
   const replay=await auth.POST(new Request(origin+'/api/auth/reset-password',{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify({token,newPassword:password})}));assert.ok(replay.status>=400);
   const me=await api.GET(new Request(origin+'/api/me',{headers:{cookie:oldCookie}}));assert.equal((await me.json()).user,null);
+  const secondSession=await api.GET(new Request(origin+'/api/me',{headers:{cookie:secondCookie}}));assert.equal((await secondSession.json()).user,null);
   await call('sign-in/email',{email,password},401);await call('sign-in/email',{email,password:nextPassword});
   console.log('PASS private reset response, one-use token, old-password rejection and session revocation');
   const badRedirect=await auth.POST(new Request(origin+'/api/auth/request-password-reset',{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify({email,redirectTo:'https://untrusted.example/reset'})}));assert.ok(badRedirect.status>=400);await drainAuthEmails();

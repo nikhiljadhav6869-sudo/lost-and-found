@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { Download, Share, Smartphone, Wifi, X } from 'lucide-react';
 import styles from './InstallApp.module.css';
+import { keepDialogFocus } from '../lib/dialog-focus';
 
 type InstallPromptEvent = Event & {
     prompt: () => Promise<void>;
@@ -27,7 +28,7 @@ function InstallInstructions({ close, install, busy }: { close: () => void; inst
         };
     }, []);
 
-    return <dialog ref={dialog} className={`modal ${styles.dialog}`} aria-labelledby={headingId} aria-describedby={descriptionId}
+    return <dialog ref={dialog} className={`modal ${styles.dialog}`} aria-labelledby={headingId} aria-describedby={descriptionId} onKeyDown={keepDialogFocus}
         onCancel={event => { event.preventDefault(); close(); }}
         onClick={event => { if (event.target === dialog.current) close(); }}>
         <header>

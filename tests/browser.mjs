@@ -1,3 +1,4 @@
+import {checkAccessibility} from './accessibility.mjs';
 import {checkMobileReturn} from './mobile-return.mjs';
 import {chromium} from '@playwright/test';
 import {spawn} from 'node:child_process';
@@ -26,9 +27,26 @@ try{
  await page.locator('.skeleton').first().waitFor({state:'hidden'});
  await page.evaluate(()=>scrollTo(0,0));
  await page.screenshot({path:'.sites-runtime/browser/desktop.png',fullPage:true});
+ await checkAccessibility(page, 'home');
+ await page.getByRole('button',{name:'Use dark theme'}).click();
+ await checkAccessibility(page, 'dark-home');
+ await page.getByRole('button',{name:'Use light theme'}).click();
+ const signIn=page.getByRole('button',{name:'Sign in',exact:true}).first();
+ await signIn.click();
+ await checkAccessibility(page,'sign-in');
+ const account=page.getByRole('dialog');
+ for(let step=0;step<8;step++){
+   await page.keyboard.press('Tab');
+   assert.ok(await account.evaluate(element=>element.contains(document.activeElement)),'Account focus step '+step+': '+await page.evaluate(()=>document.activeElement.outerHTML.slice(0,160)));
+ }
+ await account.getByRole('button',{name:'Create an account'}).click();
+ await checkAccessibility(page,'register');
+ await page.keyboard.press('Escape');
+ assert.ok(await signIn.evaluate(element=>element===document.activeElement),'Focus must return to the sign-in button');
  console.log('PASS browser real/demo separation and honest offline-AI search');
  await page.goto(origin+'/?install=1');
  await page.getByRole('dialog').filter({has:page.getByRole('heading',{name:'Lost & Found on your phone'})}).waitFor();
+ await checkAccessibility(page,'install');
  await page.getByRole('button',{name:'Got it',exact:true}).click();
  assert.ok(!page.url().includes('install='));
  console.log('PASS browser installation link and dismiss behavior');
@@ -38,6 +56,7 @@ try{
  await page.goto(origin);
  await page.getByRole('button',{name:'I lost something',exact:true}).first().click();
  const form=page.getByRole('dialog');
+ await checkAccessibility(page,'report-form');
  await form.getByLabel('A short, descriptive title').fill('Browser draft backpack');
  await form.getByLabel('Public description').fill('Green canvas backpack with brown straps.');
  await form.getByLabel('Approximate location').fill('Library');
@@ -62,6 +81,7 @@ try{
    await page.getByText('Real community reports',{exact:true}).waitFor();
    await page.getByText('Browser draft backpack',{exact:true}).waitFor();
    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Horizontal overflow at '+width);
+   if(width===375)await checkAccessibility(page,'mobile');
    await page.screenshot({path:'.sites-runtime/browser/mobile-'+width+'.png',fullPage:true});
  }
  await context.setOffline(true);

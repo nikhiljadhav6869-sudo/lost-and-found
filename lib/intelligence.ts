@@ -1,4 +1,4 @@
-import { match, type Matchable } from './matching';
+import { match, hasItemIdentity, STRONG_MATCH_THRESHOLD, type Matchable } from './matching';
 export const MODEL_VERSION = 'minilm-751bff3_clip-d15189d_q8_v1';
 export const DEFAULT_WEIGHTS = { details: 0.4, text: 0.35, image: 0.25 };
 export type Embedding = { model: string; revision: number; textVector: string; imageVector: string | null };
@@ -33,6 +33,7 @@ export function multimodal(a: Matchable, b: Matchable, ea?: Embedding | null, eb
     if (image !== null) { sum += strength(image, 0.4) * weights.image; total += weights.image; if (image >= 0.7) reasons.push('Visually similar photographs'); }
     let score = Math.round(100 * sum / total);
     if (a.category !== b.category) score = Math.min(score, 74);
+    if (!hasItemIdentity(a) || !hasItemIdentity(b)) score = Math.min(score, STRONG_MATCH_THRESHOLD);
     return { score, reasons, method: image === null ? 'semantic-and-details' : 'image-semantic-and-details', model: MODEL_VERSION };
 }
 export function publicEmbeddingText(r: Record<string, any>) {

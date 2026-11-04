@@ -115,3 +115,19 @@ console.log('PASS paginated administrator account review excludes contact creden
 await assert.rejects(()=>resetDemo(),/explicitly enabled/);
 process.env.SEED_DEMO='true';await resetDemo();assert.equal((await a.call('reports')).total,2);assert.ok((await a.call('reports?demo=1')).total>=9);
 console.log('PASS local-only demo reset preserves real reports');
+
+// Generic descriptions must stay below the notification threshold even with identical vectors.
+await env.DB.prepare('DELETE FROM limits').run();
+await a.call('preferences',{matches:true});
+await a.call('blocks',{userId:bid,remove:true});
+const generic={...data,title:'Small household object',description:'Found on campus',category:'Other',colour:'',brand:'',privateDetails:'',images:[]};
+const genericFound=await a.call('reports',generic);
+const genericLost=await b.call('reports',{...generic,type:'lost'});
+await processEmbeddingJobs(encode,20);
+const genericSuggestion=(await a.call('reports/'+genericFound.id)).matches.find(item=>item.report.id===genericLost.id);
+assert.ok(genericSuggestion);
+assert.ok(genericSuggestion.score<=75);
+assert.equal(genericSuggestion.strongMatch,false);
+const genericAlerts=await env.DB.prepare('SELECT count(*) AS n FROM match_alerts WHERE reportA IN (?,?) OR reportB IN (?,?)').bind(genericFound.id,genericLost.id,genericFound.id,genericLost.id).first();
+assert.equal(genericAlerts.n,0);
+console.log('PASS generic reports remain discoverable without high-similarity alerts after inference');
