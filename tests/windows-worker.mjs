@@ -27,7 +27,8 @@ if(process.platform==='win32') {
     const ciphertext=fs.readFileSync(protectedFile,'utf8');assert.match(ciphertext,/^[a-f0-9]+$/i);assert.equal(ciphertext.includes(config.TURSO_AUTH_TOKEN),false);
     result=invoke('Validate');assert.equal(result.status,0,result.stderr);assert.equal(JSON.parse(result.stdout).valid,true);
     result=invoke('Plan');assert.equal(result.status,0,result.stderr);const plan=JSON.parse(result.stdout);assert.equal(plan.configured,true);assert.equal(plan.installed,false);assert.equal(plan.wakeComputer,false);assert.equal(plan.runLevel,'Limited');assert.equal(plan.credentialsOnCommandLine,false);assert.equal(plan.node,process.execPath);
-    console.log('PASS Windows DPAPI round-trip and dry-run (no task installed; synthetic values only)');
+    assert.equal(plan.recoveryMinutes,15);
+    console.log('PASS Windows DPAPI round-trip and recovery plan (no task installed; synthetic values only)');
   } finally {
     // This test owns only its new UUID profile; never remove an operator profile.
     const expected=path.resolve(root,'.sites-runtime');

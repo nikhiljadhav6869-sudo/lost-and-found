@@ -9,11 +9,6 @@ param(
     [switch]$AllowBattery
 )
 $ErrorActionPreference = 'Stop'
-# An editor may pass PowerShell 7 module paths to Windows PowerShell 5.1.
-# Load the matching built-in security module for ACL and DPAPI operations.
-if ($PSVersionTable.PSEdition -eq 'Desktop') {
-    Import-Module (Join-Path $PSHOME 'Modules\Microsoft.PowerShell.Security\Microsoft.PowerShell.Security.psd1') -ErrorAction Stop
-}
 $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $runtime = Join-Path (Join-Path $root '.sites-runtime') $Profile
 $configFile = Join-Path $runtime 'credentials.dpapi'
@@ -52,6 +47,15 @@ function Validate-Config([string]$json) {
     $process.Dispose()
 }
 function Find-Task { return Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue }
+function Write-StartupStatus([string]$step) {
+    # Fixed stage names only: never write credentials or exception details.
+    try {
+        if (Test-Path -LiteralPath $configFile) {
+            $status = [ordered]@{time=[DateTime]::UtcNow.ToString('o');process=$PID;stage=$step} | ConvertTo-Json -Compress
+            [IO.File]::WriteAllText((Join-Path $runtime 'startup-status.json'), $status)
+        }
+    } catch {}
+}
 function Protect-Directory {
     $null = [IO.Directory]::CreateDirectory($runtime)
     $acl = New-Object Security.AccessControl.DirectorySecurity
@@ -64,6 +68,12 @@ function Protect-Directory {
 }
 
 try {
+    # Use the matching built-in module even with inherited PowerShell 7 paths.
+    $stage = 'security module'
+    if ($Action -eq 'Run') { Write-StartupStatus 'loading-security-module' }
+    if ($PSVersionTable.PSEdition -eq 'Desktop') {
+        Import-Module (Join-Path $PSHOME 'Modules\Microsoft.PowerShell.Security\Microsoft.PowerShell.Security.psd1') -ErrorAction Stop
+    }
     if ($Action -eq 'Configure') {
         $json = [Console]::In.ReadToEnd()
         $stage = 'configuration validation'
@@ -82,7 +92,7 @@ try {
         '{"valid":true,"protection":"Windows current-user DPAPI"}'
     }
     elseif ($Action -eq 'Plan' -or $DryRun) {
-        [ordered]@{ taskName=$taskName; node=$node; project=$root; profile=$Profile; configured=(Test-Path -LiteralPath $configFile); trigger='Current user logon'; runLevel='Limited'; window='Hidden'; wakeComputer=$false; executionTimeLimit='Unlimited'; credentialsOnCommandLine=$false; installed=$false } | ConvertTo-Json -Compress
+        [ordered]@{ taskName=$taskName; node=$node; project=$root; profile=$Profile; configured=(Test-Path -LiteralPath $configFile); trigger='Current user logon and periodic recovery'; recoveryMinutes=15; runLevel='Limited'; window='Hidden'; wakeComputer=$false; executionTimeLimit='Unlimited'; credentialsOnCommandLine=$false; installed=$false } | ConvertTo-Json -Compress
     }
     elseif ($Action -eq 'Install') {
         Validate-Config (Read-ProtectedConfig)
@@ -94,13 +104,15 @@ try {
         $shellExecutable = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
         $actionSpec = New-ScheduledTaskAction -Execute $shellExecutable -Argument $arguments -WorkingDirectory $root
         $trigger = New-ScheduledTaskTrigger -AtLogOn -User $sid
+        $recoveryTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 15)
         $principal = New-ScheduledTaskPrincipal -UserId $sid -LogonType Interactive -RunLevel Limited
         $settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 5) -StartWhenAvailable
+        $settings.IdleSettings.StopOnIdleEnd = $false
         if ($AllowBattery) {
             $settings.DisallowStartIfOnBatteries = $false
             $settings.StopIfGoingOnBatteries = $false
         }
-        $null = Register-ScheduledTask -TaskName $taskName -Action $actionSpec -Trigger $trigger -Principal $principal -Settings $settings -Description 'Lost & Found private AI processing while this user is signed in. No wake timers or administrator privileges.'
+        $null = Register-ScheduledTask -TaskName $taskName -Action $actionSpec -Trigger @($trigger,$recoveryTrigger) -Principal $principal -Settings $settings -Description 'Lost & Found private AI processing while this user is signed in, with 15-minute recovery attempts. No wake timers or administrator privileges.'
         [ordered]@{installed=$true;taskName=$taskName} | ConvertTo-Json -Compress
     }
     elseif ($Action -eq 'Start') {
@@ -126,14 +138,18 @@ try {
     }
     elseif ($Action -eq 'Run') {
         $stage = 'worker ownership'
+        Write-StartupStatus 'loading-worker-mutex'
         Add-Type -Path (Join-Path $PSScriptRoot 'windows-worker-mutex.cs')
         $workerMutex = [LostFoundWorkerMutex]::Open($root, $Profile)
         try {
         if (!$workerMutex.Acquire(0)) { exit 0 }
+        Write-StartupStatus 'reading-protected-settings'
         $json = Read-ProtectedConfig
+        Write-StartupStatus 'validating-protected-settings'
         Validate-Config $json
         # A job object owns this launcher and every descendant, including native model processes.
         # Windows closes the last handle when Task Scheduler stops the launcher, killing children.
+        Write-StartupStatus 'loading-process-group'
         Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
@@ -155,6 +171,7 @@ public static class LostFoundWorkerJob {
     }
 }
 '@
+        Write-StartupStatus 'attaching-process-group'
         [LostFoundWorkerJob]::Attach()
         $start = New-Object Diagnostics.ProcessStartInfo
         $start.FileName = $node
@@ -163,8 +180,10 @@ public static class LostFoundWorkerJob {
         $start.UseShellExecute = $false
         $start.CreateNoWindow = $true
         $start.RedirectStandardInput = $true
+        Write-StartupStatus 'starting-supervisor'
         $process = [Diagnostics.Process]::Start($start)
         $process.StandardInput.Write($json); $process.StandardInput.Close(); $json=$null
+        Write-StartupStatus 'supervisor-running'
         $process.WaitForExit()
         exit $process.ExitCode
         }
@@ -173,6 +192,7 @@ public static class LostFoundWorkerJob {
 }
 catch {
     # Never output credential contents, provider responses, or raw exception details.
+    if ($Action -eq 'Run') { Write-StartupStatus ('failed: ' + $stage) }
     [Console]::Error.WriteLine('Worker setup failed during ' + $Action + ' (' + $stage + '). Check Node.js 24, protected configuration, and Windows task permissions.')
     exit 1
 }

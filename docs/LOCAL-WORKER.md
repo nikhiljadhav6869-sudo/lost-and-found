@@ -10,6 +10,12 @@ Scheduled tasks now launch the built-in Windows PowerShell executable, independe
 
 On 5 November 2026 the existing task's action was repaired to use installed Node and Windows PowerShell, preserving its user, protected credentials and settings. Repeated task/log checks and the public app confirmed it was running again. The isolated Windows PowerShell encryption/configuration tests passed; CI checks both PowerShell versions. A start request alone does not prove worker availability—check the running task and app heartbeat.
 
+After a later offline alert, periodic recovery was added to the existing task and new-install configuration. Every 15 minutes Windows attempts to start the task while the configured user is signed in; an already running instance is ignored and the existing mutex prevents duplicate workers. Wake timers remain disabled. This can recover a stopped task after interruption, but cannot provide AI processing while the computer is asleep, shut down or signed out. Use Stop for immediate troubleshooting; use Remove if you want to disable future scheduled starts while retaining credentials.
+
+The later 5 November investigation remains unresolved: scheduled launches exited with Windows result `0xC000013A` in both available PowerShell versions, at different startup stages. A controlled launcher run produced worker batches, and encrypted configuration/mutex tests passed. These observations do not establish the cause of the scheduled termination. The offline issue remains open; a recent heartbeat alone can outlast a stopped process by 15 minutes. Check a fresh batch timestamp and an active worker process before declaring recovery. `startup-status.json` in the protected worker directory records only the latest fixed stage name, process ID and UTC timestamp; no credential or raw exception content is recorded.
+
+The task's stop-on-idle-end setting was also explicitly disabled so user activity does not request stopping background processing. Battery permission and wake behavior remain separate settings. This change is a recovery safeguard, not proof of the cause of the earlier exits.
+
 `scripts/windows-worker.ps1 -Action Configure` accepts one JSON object on **standard input**, containing exactly these string keys:
 
 ```text
