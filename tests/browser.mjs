@@ -1,3 +1,4 @@
+import {checkQuickFound} from './quick-found.mjs';
 import {checkAccessibility} from './accessibility.mjs';
 import {checkMobileReturn} from './mobile-return.mjs';
 import {chromium, webkit} from '@playwright/test';
@@ -59,9 +60,11 @@ try{
  await page.getByRole('button',{name:'I lost something',exact:true}).first().click();
  const form=page.getByRole('dialog');
  await checkAccessibility(page,'report-form');
- await form.getByLabel('A short, descriptive title').fill('Browser draft backpack');
+ await form.getByLabel('Item name').fill('Browser draft backpack');
  await form.getByLabel('Public description').fill('Green canvas backpack with brown straps.');
  await form.getByLabel('Approximate location').fill('Library');
+ await form.getByText('Add more details (optional)',{exact:true}).click();
+ await form.getByText('Save a draft or check my similar reports',{exact:true}).click();
  await form.getByLabel('Private distinguishing features').fill('PRIVATE-NOT-IN-DRAFT');
  await form.getByLabel('Save public draft details in this browser tab').check();
  await page.waitForFunction(()=>Object.keys(sessionStorage).some(k=>k.startsWith('lf-draft-v1:')));
@@ -69,8 +72,9 @@ try{
  assert.ok(saved.length);assert.ok(!JSON.stringify(saved).includes('PRIVATE-NOT-IN-DRAFT'));
  await form.getByRole('button',{name:'Cancel',exact:true}).click();
  await page.getByRole('button',{name:'I lost something',exact:true}).first().click();
+ await form.getByText('Save a draft or check my similar reports',{exact:true}).click();
  await form.getByRole('button',{name:'Restore saved draft',exact:true}).click();
- assert.equal(await form.getByLabel('A short, descriptive title').inputValue(),'Browser draft backpack');
+ assert.equal(await form.getByLabel('Item name').inputValue(),'Browser draft backpack');
  assert.equal(await form.getByLabel('Private distinguishing features').inputValue(),'');
  await form.getByRole('button',{name:'Check my similar reports',exact:true}).click();
  await form.getByText('No close duplicate found among your latest active reports.').waitFor();
@@ -92,4 +96,5 @@ try{
  assert.deepEqual(errors,[]);
  console.log('PASS browser mobile-width layout, offline status and no uncaught page errors');
  await checkMobileReturn(browser, origin);
+ await checkQuickFound(browser, origin);
 }finally{if(browser)await browser.close();server.kill();}

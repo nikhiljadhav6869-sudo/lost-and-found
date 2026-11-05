@@ -4,6 +4,8 @@ import {once} from 'node:events';
 import {request as httpRequest} from 'node:http';
 import {randomBytes} from 'node:crypto';
 import {server} from '../.sites-runtime/http-server.mjs';
+import {photoOfSize} from './large-photo.mjs';
+import {MAX_PHOTO_BYTES} from '../lib/photo-limits.mjs';
 
 if (!server.listening) await once(server, 'listening');
 const origin = `http://127.0.0.1:${process.env.PORT}`;
@@ -83,6 +85,18 @@ try {
   assert.equal(downloaded.type,'image/png');
   assert.ok(downloaded.data.length > 20);
   console.log('PASS HTTP multipart upload, report persistence, search and media streaming');
+  const large = new FormData();
+  large.append('file', new Blob([photoOfSize(MAX_PHOTO_BYTES)], {type:'image/jpeg'}), '15mb.jpg');
+  const largeImage = (await request('/api/upload', large)).data.url;
+  assert.ok((await request(largeImage)).data.length < 1024 * 1024, 'Metadata is removed from the large original');
+  const tooLarge = new FormData();
+  tooLarge.append('file', new Blob([photoOfSize(MAX_PHOTO_BYTES + 1)], {type:'image/jpeg'}), 'over-limit.jpg');
+  await request('/api/upload', tooLarge, 400);
+  const minimal = {type:'found',title:'Small striped umbrella',category:'Other',description:'',colour:'',brand:'',date:new Date().toISOString().slice(0,10),location:'Campus cafe',privateDetails:'',images:[]};
+  const quick = (await request('/api/reports', minimal)).data;
+  assert.equal((await request('/api/reports/'+quick.id)).data.report.description, '');
+  await request('/api/reports', {...minimal,type:'lost'}, 400);
+  console.log('PASS HTTP accepts exactly 15 MB, rejects larger photos, and keeps lost descriptions required');
   await request('/api/auth/sign-out',{});
   await request('/api/dashboard',undefined,401);
   console.log('PASS HTTP logout invalidates protected access');

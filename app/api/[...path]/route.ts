@@ -1,3 +1,4 @@
+import { MAX_UPLOAD_BODY_BYTES } from '../../../lib/photo-limits.mjs';
 import { env } from 'cloudflare:workers';
 import { auth, authCapabilities } from '../../../lib/auth';
 import { match, categories, isStrongMatch, type Matchable } from '../../../lib/matching';
@@ -25,7 +26,7 @@ async function limit(key: string, max = 30) { const k = key + ':' + Math.floor(n
 async function current(req: Request) { const s = await auth(new URL(req.url).origin).api.getSession({ headers: req.headers }); return s?.user ?? null; }
 const publicReport = (r: Row): Row => { const { privateDetails, textVector, imageVector, model, revision, matchRevision, ...safe } = r; return { ...safe, images: JSON.parse(r.images) }; };
 async function blocked(a: string, b: string) { return !!await one('SELECT 1 FROM blocks WHERE (userId=? AND blocked=?) OR (userId=? AND blocked=?)', a, b, b, a); }
-const reportSchema = z.object({ type: z.enum(['lost', 'found']), title: z.string().trim().min(3).max(100), category: z.string().refine(x => categories.includes(x)), description: z.string().trim().min(10).max(2000), colour: z.string().trim().max(50), brand: z.string().trim().max(60), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(x => Number.isFinite(Date.parse(x)) && new Date(x).toISOString().slice(0, 10) === x && x <= new Date().toISOString().slice(0, 10)), location: z.string().trim().min(2).max(100), privateDetails: z.string().trim().max(2000), images: z.array(z.string().max(150)).max(5) });
+const reportSchema = z.object({ type: z.enum(['lost', 'found']), title: z.string().trim().min(3).max(100), category: z.string().refine(x => categories.includes(x)), description: z.string().trim().max(2000), colour: z.string().trim().max(50), brand: z.string().trim().max(60), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(x => Number.isFinite(Date.parse(x)) && new Date(x).toISOString().slice(0, 10) === x && x <= new Date().toISOString().slice(0, 10)), location: z.string().trim().min(2).max(100), privateDetails: z.string().trim().max(2000), images: z.array(z.string().max(150)).max(5) }).refine(data => data.type === 'found' || data.description.length >= 10, { path: ['description'], message: 'Describe your lost item in at least 10 characters.' });
 async function matchingReports(r: Row) {
     if (r.hidden || !['Open', 'Claim Pending'].includes(r.status)) return [];
     const sourceEmbedding = await one('SELECT * FROM embeddings WHERE reportId=? AND revision=?', r.id, r.matchRevision);
@@ -69,7 +70,7 @@ async function handle(req: Request) {
     if (method !== 'GET') {
         if (req.headers.get('origin') !== url.origin)
             fail('Request origin could not be verified.', 403);
-        if (Number(req.headers.get('content-length') || 0) > 6 * 1024 * 1024)
+        if (Number(req.headers.get('content-length') || 0) > (path[0] === 'upload' ? MAX_UPLOAD_BODY_BYTES : 6 * 1024 * 1024))
             fail('Request is too large.', 413);
     }
     if (path[0] === 'health' && method === 'GET') { await one('SELECT 1'); return { ok: true }; }
@@ -148,7 +149,7 @@ async function handle(req: Request) {
     if (method !== 'GET')
         await limit(user.id + ':' + path[0], path[0] === 'reports' ? 10 : path[0] === 'smart-search' ? 5 : 30);
     if (path[0] === 'upload' && method === 'POST') {
-        const bytes = await boundedBody(req, 6 * 1024 * 1024);
+        const bytes = await boundedBody(req, MAX_UPLOAD_BODY_BYTES);
         const bounded = new Request(req.url, { method: 'POST', headers: req.headers, body: bytes });
         const form = await bounded.formData(), file = form.get('file');
         if (!(file instanceof File))

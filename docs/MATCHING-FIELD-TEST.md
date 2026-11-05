@@ -14,7 +14,7 @@ Save the dataset and its photos under ignored `.sites-runtime/field-evaluation/`
 }
 ```
 
-Reports for the exact same physical object share `objectId`; lookalikes have different IDs. Labels are excluded from scoring. Photos are relative paths inside the dataset directory, maximum five per report and 5 MB each. Use distinct photos and independent descriptions between lost and found examples. The two-report example only demonstrates the format and cannot establish quality.
+Reports for the exact same physical object share `objectId`; lookalikes have different IDs. Labels are excluded from scoring. Photos are relative paths inside the dataset directory, maximum five per report and 15 MB each. Use distinct photos and independent descriptions between lost and found examples. The two-report example only demonstrates the format and cannot establish quality.
 
 Run from the repository root after installing root and AI dependencies:
 

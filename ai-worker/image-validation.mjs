@@ -1,7 +1,9 @@
+import { MAX_PHOTO_BYTES } from '../lib/photo-limits.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import sharp from 'sharp';
 import {validateImageInput,embed} from './models.mjs';
+import {photoOfSize} from '../tests/large-photo.mjs';
 
 const png=fs.readFileSync(new URL('../tests/fixtures/sample.png',import.meta.url));
 for(const [format,bytes] of [['png',png],['jpeg',await sharp(png).jpeg().toBuffer()],['webp',await sharp(png).webp({lossless:true}).toBuffer()]]){
@@ -10,6 +12,8 @@ for(const [format,bytes] of [['png',png],['jpeg',await sharp(png).jpeg().toBuffe
  assert.ok(metadata.width>0 && metadata.height>0);
 }
 console.log('PASS worker accepts real JPEG, PNG and still WebP headers');
+assert.equal((await validateImageInput(photoOfSize(MAX_PHOTO_BYTES))).format,'jpeg');
+console.log('PASS worker accepts a valid 15 MB original');
 
 // Tiny lossless WebP header: 8192 x 8192 = 67M pixels, with no VP8X chunk.
 // Header inspection must reject this before full pixel decoding or model loading.
@@ -23,7 +27,7 @@ console.log('PASS oversized simple VP8L rejected before full decode and inferenc
 
 const svg=Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><rect width="8" height="8"/></svg>');
 await assert.rejects(()=>validateImageInput(svg),/JPEG, PNG, or WebP/);
-await assert.rejects(()=>validateImageInput(new Uint8Array(5*1024*1024+1)),/too large/);
+await assert.rejects(()=>validateImageInput(new Uint8Array(MAX_PHOTO_BYTES+1)),/too large/);
 await assert.rejects(()=>validateImageInput(new Uint8Array()),/empty/);
 await assert.rejects(()=>validateImageInput(Buffer.from('not an image')));
 console.log('PASS SVG, oversized bytes, empty and malformed images rejected');

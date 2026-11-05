@@ -10,6 +10,12 @@ Scan this QR code to open the installation link:
 
 ![QR code for the public Lost & Found app](public/app-qr.png)
 
+## Quick reporting and appearance
+
+Choose **I found something**, enter the item name and approximate location, then publish. Photos, a description, and additional identifying details are optional; the date starts at today and can be changed under **Add more details**. Lost-item reports still require a public description. Draft tools and duplicate checks remain available in an optional section. Signing in resumes the action you selected.
+
+Photos can be **up to 15 MB each**, with up to five JPEG, PNG, or still WebP photos per report. The report form resizes photos before uploading and removes location metadata. Use the labelled **Dark mode / Light mode** button in the header; the first visit follows the device theme and later visits remember your choice.
+
 ## Production optimization update
 
 The upgrade adds clearer authentication recovery, qualitative match labels, separate demo browsing, optional real image/text inference, semantic/photo search, public-only drafts, notification preferences, operational visibility and encrypted backup scheduling tools. See the [eight-problem improvement report](docs/IMPROVEMENT-REPORT.md), [test evidence](docs/TEST-REPORT.md) and [upgrade deployment guide](docs/DEPLOYMENT-UPGRADE.md). AI inference is active through a Windows worker while its computer is awake and signed in. Daily private backups are enabled for 07:00 India time; see [verified operations status](docs/OPERATIONS-STATUS.md). The [signed Android APK](https://github.com/nikhiljadhav6869-sudo/lost-and-found/releases/download/android-v1.0.0/Lost-and-Found-1.0.0.apk) is available for testing on Android 7.0 and newer. Installation and launch passed on an emulator. Physical-phone validation remains outstanding.
@@ -102,7 +108,7 @@ Restart the local server after configuring the account ID. For Render, set `ADMI
 
 - **Discovery:** keyword, type, category, approximate location, date range, status, sorting and pagination. Reports can be opened through `/?report=ID`, saved, shared, or downloaded as a QR code.
 - **Reporting:** lost/found type; title; category; public description; colour; optional brand; date; approximate location; private distinguishing features; up to five images; preview, removal and cover selection. Open reports can be edited, closed or deleted by their owner.
-- **Images:** JPEG, PNG and still WebP; 5 MB per original image. The browser resizes to 1800 px and re-encodes. The server independently validates signatures and structure, enforces request limits, and removes EXIF/XMP and other metadata. Unpublished uploads are accessible only to their uploader. Reports without images receive bundled category illustrations.
+- **Images:** JPEG, PNG and still WebP; 15 MB per original image. The browser resizes to 1800 px and re-encodes. The server independently validates signatures and structure, enforces request limits, and removes EXIF/XMP and other metadata. Unpublished uploads are accessible only to their uploader. Reports without images receive bundled category illustrations.
 - **Claims:** a claimant supplies private evidence, then the two participants exchange private messages. The finder may ask questions and approve or reject the claim. A pending claim can be withdrawn. Blocking prevents interaction in both directions.
 - **Returns:** an approval reserves the listing; a database uniqueness constraint prevents two approved claims. One confirmation leaves the report in Return Arranged. Only both confirmations produce Returned. Other pending claims are rejected when the return completes. Rejecting or withdrawing a pending claim leaves other claims and the listing open as appropriate.
 - **Notifications:** persisted match, claim, message and return updates; mark all as read. Conversations refresh every ten seconds while open; the dashboard has a manual refresh control.

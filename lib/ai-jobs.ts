@@ -1,3 +1,4 @@
+import { MAX_PHOTO_BYTES } from './photo-limits.mjs';
 import { env } from 'cloudflare:workers';
 import { MODEL_VERSION, publicEmbeddingText } from './intelligence';
 import { recordOperation } from './operations';
@@ -14,7 +15,7 @@ async function imagesFor(paths: string[], owner: string) {
         const object = await env.BUCKET!.get(key);
         if (!object) throw new Error('Image unavailable');
         const bytes = new Uint8Array(await new Response(object.body).arrayBuffer());
-        if (bytes.length > 5 * 1024 * 1024) throw new Error('Image too large');
+        if (bytes.length > MAX_PHOTO_BYTES) throw new Error('Image too large');
         images.push(bytes);
     }
     return images;

@@ -1,3 +1,4 @@
+import { MAX_PHOTO_BYTES } from '../lib/photo-limits.mjs';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import {createHash,randomUUID} from 'node:crypto';
@@ -33,7 +34,7 @@ const normalize = data => { const v = Array.from(data); const norm = Math.hypot(
 const MAX_IMAGE_PIXELS = 40000000;
 /** Read headers before allocating decoded pixels or loading an inference model. */
 export async function validateImageInput(bytes) {
-    if (!(bytes instanceof Uint8Array) || bytes.byteLength === 0 || bytes.byteLength > 5 * 1024 * 1024) throw new Error('Image too large or empty');
+    if (!(bytes instanceof Uint8Array) || bytes.byteLength === 0 || bytes.byteLength > MAX_PHOTO_BYTES) throw new Error('Image too large or empty');
     const metadata = await sharp(Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength), { limitInputPixels: MAX_IMAGE_PIXELS, failOn: 'error' }).metadata();
     if (!['jpeg', 'png', 'webp'].includes(metadata.format)) throw new Error('Choose a JPEG, PNG, or WebP image');
     if (!Number.isInteger(metadata.width) || !Number.isInteger(metadata.height) || metadata.width < 1 || metadata.height < 1 || metadata.width * metadata.height > MAX_IMAGE_PIXELS) throw new Error('Image dimensions too large');

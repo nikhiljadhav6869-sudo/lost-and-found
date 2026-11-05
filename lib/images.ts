@@ -1,7 +1,8 @@
+import { MAX_PHOTO_BYTES } from './photo-limits.mjs';
 // Metadata is discarded on the server even if a caller bypasses browser re-encoding.
 export function cleanImage(bytes: Uint8Array, type: string): Uint8Array {
-    if (bytes.length < 20 || bytes.length > 5 * 1024 * 1024)
-        throw new Error('Images must be valid and smaller than 5 MB.');
+    if (bytes.length < 20 || bytes.length > MAX_PHOTO_BYTES)
+        throw new Error('Images must be valid and no larger than 15 MB.');
     const chunks: Uint8Array[] = [];
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     const str = (a: number, b: number) => String.fromCharCode(...bytes.slice(a, b));

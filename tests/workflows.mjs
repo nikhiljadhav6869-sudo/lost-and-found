@@ -1,3 +1,4 @@
+import { MAX_PHOTO_BYTES } from '../lib/photo-limits.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -42,7 +43,7 @@ const lostImages=[];for(const f of imageFiles.slice(0,2)){const form=new FormDat
 await anon.call(images[0].replace('/api/',''),undefined,'GET',404);ok('JPEG, PNG and WebP uploads persist; unpublished media is private');
 const invalid=new FormData();invalid.append('file',new Blob(['<svg>bad</svg>'],{type:'image/svg+xml'}),'bad.svg');await finder.call('upload',invalid,'POST',400);
 const disguised=new FormData();disguised.append('file',new Blob(['this is not a valid image file'],{type:'image/png'}),'fake.png');await finder.call('upload',disguised,'POST',400);
-const oversize=new FormData();oversize.append('file',new Blob([new Uint8Array(5*1024*1024+1)],{type:'image/png'}),'big.png');await finder.call('upload',oversize,'POST',400);ok('Unsupported, disguised and oversized uploads are rejected');
+const oversize=new FormData();oversize.append('file',new Blob([new Uint8Array(MAX_PHOTO_BYTES+1)],{type:'image/png'}),'big.png');await finder.call('upload',oversize,'POST',400);ok('Unsupported, disguised and oversized uploads are rejected');
 const jpeg=fs.readFileSync('tests/fixtures/sample.jpg');assert.ok(jpeg.includes(Buffer.from('location-secret')));assert.ok(!Buffer.from(cleanImage(jpeg,'image/jpeg')).includes(Buffer.from('location-secret')));ok('Server strips EXIF metadata');
 const data={type:'found',title:'Green canvas backpack',category:'Bags',description:'Olive canvas backpack with brown straps left near the community library.',colour:'Green',brand:'Field',date:'2026-10-08',location:'Aundh Library, Pune',privateDetails:'Secret blue stitching behind the inside pocket.',images};
 const found=await finder.call('reports',data);const lost=await owner.call('reports',{...data,type:'lost',images:lostImages,date:'2026-10-07'});

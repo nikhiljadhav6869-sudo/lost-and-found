@@ -1,4 +1,6 @@
 'use client';
+import { MAX_PHOTO_BYTES } from '../lib/photo-limits.mjs';
+
 import { useEffect, useState, type FormEvent } from 'react';
 import { requestJson } from '../lib/request';
 export default function SmartSearch({ onOpen, signedIn }: { onOpen: (id: string) => void; signedIn: boolean }) {
@@ -37,7 +39,7 @@ export default function SmartSearch({ onOpen, signedIn }: { onOpen: (id: string)
             <label>Describe the item<input maxLength={500} value={query} onChange={e=>setQuery(e.target.value)} placeholder="Black wireless earbuds in a small charging case"/></label>
             <label>Photo (optional)<input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={async e=>{
                 const file=e.target.files?.[0];e.target.value='';if(!file)return;
-                if(file.size>5*1024*1024){setError('Choose a photo under 5 MB.');return;}
+                if(file.size>MAX_PHOTO_BYTES){setError('Choose a photo 15 MB or smaller.');return;}
                 setBusy(true);setError('');try {
                     const form=new FormData();form.append('file',file);
                     const response=await fetch('/api/upload',{method:'POST',body:form,signal:AbortSignal.timeout(30000)});

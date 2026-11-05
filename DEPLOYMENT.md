@@ -7,7 +7,7 @@ The application supports **Render Free + Turso/libSQL + private Supabase Storage
 ## 1. Create the external resources
 
 1. In [Turso](https://app.turso.tech/), create a free **libSQL-compatible** database. Copy its database URL and database-scoped read/write token into Render environment settings. The app uses `@libsql/client`, not the new incompatible native Turso API.
-2. In [Supabase](https://supabase.com/dashboard), create a free project, then a **private** Storage bucket named `lost-found-photos`. Set allowed content types to JPEG, PNG and WebP and a 5 MB file limit. Do not add public/anonymous access policies. This app serves images through its own authorised API.
+2. In [Supabase](https://supabase.com/dashboard), create a free project, then a **private** Storage bucket named `lost-found-photos`. Set allowed content types to JPEG, PNG and WebP and a 15 MB file limit. Do not add public/anonymous access policies. This app serves images through its own authorised API.
 3. Use the project URL and a backend **secret key** (`sb_secret_...`). The legacy service-role key is supported as `SUPABASE_SERVICE_ROLE_KEY`, but the new secret key is preferred. Never use a publishable key for this adapter and never put a secret key in browser code.
 4. In [Brevo](https://app.brevo.com/), enable transactional email, verify a sender address (and authenticate its domain where required), and create an API key. The app uses HTTPS email delivery, not SMTP ports blocked by Render Free. No email is sent until real credentials are configured and a user requests signup, verification or reset.
 

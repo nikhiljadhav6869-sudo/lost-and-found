@@ -20,7 +20,8 @@ export async function checkMobileReturn(browser, origin) {
   async function publish(page, type) {
     await page.getByRole('button', {name: 'I ' + type + ' something', exact: true}).first().click();
     const dialog = page.getByRole('dialog');
-    await dialog.getByLabel('A short, descriptive title').fill('Indigo commuter backpack');
+    await dialog.getByText('Add more details (optional)', {exact:true}).click();
+    await dialog.getByLabel('Item name').fill('Indigo commuter backpack');
     await dialog.getByLabel('Public description').fill('Indigo woven commuter backpack with reflective straps.');
     await dialog.getByLabel('Approximate location').fill('Campus library');
     await dialog.getByLabel('Colour', {exact: true}).fill('Indigo');

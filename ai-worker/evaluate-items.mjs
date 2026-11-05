@@ -1,3 +1,4 @@
+import { MAX_PHOTO_BYTES } from '../lib/photo-limits.mjs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {build} from 'esbuild';
@@ -29,7 +30,7 @@ for(const [index,entry] of dataset.reports.entries()) {
     const resolved=await fs.realpath(path.resolve(root,filename));
     const relative=path.relative(root,resolved);
     if(relative.startsWith('..'+path.sep)||relative==='..'||path.isAbsolute(relative))throw Error('Photo must remain inside the dataset directory.');
-    const stat=await fs.stat(resolved);if(!stat.isFile()||stat.size>5*1024*1024)throw Error('Photo is missing or exceeds 5 MB.');
+    const stat=await fs.stat(resolved);if(!stat.isFile()||stat.size>MAX_PHOTO_BYTES)throw Error('Photo is missing or exceeds 15 MB.');
     photos.push(await fs.readFile(resolved));
   }
   const report={id:String(index),status:'Open',type:entry.type,category:entry.category,title:entry.title,description:entry.description,colour:entry.colour,brand:entry.brand,location:entry.location,date:entry.date};
