@@ -63,3 +63,8 @@ jobs:
         run: |
           $env:WORKER_TEST_POWERSHELL = (Get-Command pwsh).Source
           node tests/windows-worker.mjs
+      - name: Validate Windows PowerShell compatibility
+        shell: pwsh
+        run: |
+          $env:WORKER_TEST_POWERSHELL = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+          node tests/windows-worker.mjs

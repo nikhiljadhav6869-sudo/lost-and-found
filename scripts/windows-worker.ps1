@@ -9,6 +9,11 @@ param(
     [switch]$AllowBattery
 )
 $ErrorActionPreference = 'Stop'
+# An editor may pass PowerShell 7 module paths to Windows PowerShell 5.1.
+# Load the matching built-in security module for ACL and DPAPI operations.
+if ($PSVersionTable.PSEdition -eq 'Desktop') {
+    Import-Module (Join-Path $PSHOME 'Modules\Microsoft.PowerShell.Security\Microsoft.PowerShell.Security.psd1') -ErrorAction Stop
+}
 $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $runtime = Join-Path (Join-Path $root '.sites-runtime') $Profile
 $configFile = Join-Path $runtime 'credentials.dpapi'
@@ -85,7 +90,8 @@ try {
         if ([int]$version -lt 24) { throw 'Node.js 24 or later is required.' }
         if (Find-Task) { throw 'This worker task already exists. Use Start or Remove before installing again.' }
         $arguments = '-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -File "' + $PSCommandPath + '" -Action Run -Profile "' + $Profile + '" -NodePath "' + $node + '"'
-        $shellExecutable = [Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
+        # Scheduled work must not depend on the lifetime of an editor-managed shell.
+        $shellExecutable = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
         $actionSpec = New-ScheduledTaskAction -Execute $shellExecutable -Argument $arguments -WorkingDirectory $root
         $trigger = New-ScheduledTaskTrigger -AtLogOn -User $sid
         $principal = New-ScheduledTaskPrincipal -UserId $sid -LogonType Interactive -RunLevel Limited

@@ -6,6 +6,10 @@ This option runs the existing CPU models on a trusted Windows computer without p
 
 Use PowerShell 7 on Windows (or Windows PowerShell 5.1) with Node.js 24 or later. Install the root dependencies and the separate `ai-worker` dependencies. The existing model benchmark downloads and validates the pinned models. Keep this checkout and the selected Node and PowerShell executables available at their absolute paths. The commands below use `pwsh`; substitute `powershell` if using Windows PowerShell 5.1.
 
+Scheduled tasks now launch the built-in Windows PowerShell executable, independent of an editor's managed runtime. Supply `-NodePath 'C:\Program Files\nodejs\node.exe'` when installing if that is your stable Node 24+ installation. Avoid an editor's temporary Node path for unattended work. Windows PowerShell explicitly loads its own built-in security module so inherited PowerShell 7 module paths do not break directory protection or encryption.
+
+On 5 November 2026 the existing task's action was repaired to use installed Node and Windows PowerShell, preserving its user, protected credentials and settings. Repeated task/log checks and the public app confirmed it was running again. The isolated Windows PowerShell encryption/configuration tests passed; CI checks both PowerShell versions. A start request alone does not prove worker availability—check the running task and app heartbeat.
+
 `scripts/windows-worker.ps1 -Action Configure` accepts one JSON object on **standard input**, containing exactly these string keys:
 
 ```text
