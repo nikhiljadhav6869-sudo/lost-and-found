@@ -11,8 +11,9 @@ const root=await fs.realpath(path.dirname(path.resolve(file)));
 if((await fs.stat(file)).size>1024*1024)throw Error('Dataset exceeds 1 MB.');
 const input=await fs.readFile(file,'utf8');
 if(Buffer.byteLength(input)>1024*1024)throw Error('Dataset exceeds 1 MB.');
-const dataset=JSON.parse(input);
-if(!['synthetic','consented-field'].includes(dataset.source)||!Array.isArray(dataset.reports)||dataset.reports.length<2||dataset.reports.length>200)
+let dataset;
+try { dataset=JSON.parse(input); } catch { throw Error('Dataset must be valid JSON.'); }
+if(!dataset||!['synthetic','consented-field'].includes(dataset.source)||!Array.isArray(dataset.reports)||dataset.reports.length<2||dataset.reports.length>200)
   throw Error('Use 2–200 reports and a documented source.');
 const {outputFiles}=await build({stdin:{contents:"export * from './lib/intelligence'; export {isStrongMatch,categories} from './lib/matching';",resolveDir:process.cwd()},bundle:true,platform:'node',format:'esm',write:false});
 const {multimodal,publicEmbeddingText,MODEL_VERSION,isStrongMatch,categories}=await import('data:text/javascript;base64,'+Buffer.from(outputFiles[0].contents).toString('base64'));
