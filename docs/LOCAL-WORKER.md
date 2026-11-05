@@ -16,6 +16,8 @@ The later 5 November investigation remains unresolved: scheduled launches exited
 
 The task's stop-on-idle-end setting was also explicitly disabled so user activity does not request stopping background processing. Battery permission and wake behavior remain separate settings. This change is a recovery safeguard, not proof of the cause of the earlier exits.
 
+Recovery was subsequently verified on 5 November at 16:39 UTC (22:09 India time): the scheduled task was running, startup had reached the supervisor, and fresh batches continued from 16:18 through 16:39 UTC. The [live monitor run](https://github.com/nikhiljadhav6869-sudo/lost-and-found/actions/runs/42066537683) passed service, worker, backup-freshness and email-failure checks without an alert. [Incident #3](https://github.com/nikhiljadhav6869-sudo/lost-and-found/issues/3) was closed after these checks. The earlier termination cause remains unconfirmed; periodic recovery and monitoring stay enabled, and the computer must remain awake and signed in.
+
 `scripts/windows-worker.ps1 -Action Configure` accepts one JSON object on **standard input**, containing exactly these string keys:
 
 ```text
