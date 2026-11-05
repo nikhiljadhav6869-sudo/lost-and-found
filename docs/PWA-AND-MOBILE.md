@@ -28,3 +28,9 @@ Record device, OS, browser, build commit, date, and pass/fail evidence for each 
 Use two separate accounts: A reports lost, B reports found with photos; wait for embeddings; verify both eligible accounts receive one notification. Review private evidence, send messages both ways, approve once, confirm on A only (must remain Return Arranged), then on B (must become Returned). Check that an outsider cannot read the conversation and that public sharing requires both consents.
 
 Also test wrong credentials, expired mail links, missing uploads, slow/offline network during publication, repeated taps, interrupted confirmation, rejected AI suggestions, duplicate review, screen-reader labels and keyboard-only navigation. Check before retrying any ambiguous timed-out submission. Automated responsive browser checks do not replace real phones or native install tests.
+
+## Cross-engine check — 5 November 2026
+
+The isolated browser workflows passed in both Chromium/Edge and Playwright WebKit, including upload, both-user match alerts, private messaging and two-party return. WebKit exposed that clicking Sign in did not focus its button before opening the dialog; the trigger now explicitly takes focus, and Escape restores it correctly. Automated accessibility checks also passed for mobile report details, private claim entry, conversations and completed returns.
+
+CI installs both browser engines and runs the suite separately in each. Locally, install them with `npx playwright install chromium webkit`, then use `npm run verify`, or `node tests/browser.mjs --webkit` for the second engine alone. No physical Android device was connected during this run. WebKit on Windows/Linux is not a physical iPhone or a native-install test; the device checklist remains pending.

@@ -4,7 +4,7 @@ Use the existing Render service and remote database/photo configuration describe
 
 ## Web release
 
-1. Run `npm ci --include=dev` and `npm run verify` on Node 24. Linux browser tests need `npx playwright install --with-deps chromium`; Windows uses installed Edge when available.
+1. Run `npm ci --include=dev` on Node 24. Install test browsers with `npx playwright install --with-deps chromium webkit` (omit `--with-deps` on Windows), then run `npm run verify`. Windows uses installed Edge for Chromium checks when available; WebKit is also required.
 2. Keep Render build `npm ci --include=dev && npm run build:local`, start `APP_ORIGIN="$RENDER_EXTERNAL_URL" npm start`, remote storage settings and `SEED_DEMO=false`.
 3. Review and publish the tested commit to the connected branch. Auto-deploy must be enabled for that branch. Do not change existing credentials just to deploy code.
 4. Startup applies migrations 0004 and 0005 once through the existing transactional migration runner. They add tables, columns, indexes and job triggers; they do not drop accounts or reports. Archived backups now include the new tables. Restore tooling requires a matching schema version.

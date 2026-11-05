@@ -24,8 +24,10 @@ jobs:
       - run: npm run test:intelligence
       - run: npm run test:request
       - run: npm run test:backup-storage
-      - run: npx playwright install --with-deps chromium
+      - run: node tests/service-health.mjs
+      - run: npx playwright install --with-deps chromium webkit
       - run: npm run test:browser
+      - run: node tests/browser.mjs --webkit
 
   models:
     runs-on: ubuntu-latest

@@ -12,7 +12,9 @@ const checks=[
  ['Intelligence and search',['tests/intelligence.mjs']],
  ['Connection handling',['tests/request.mjs']],
  ['Backup storage',['tests/backup-storage.mjs']],
- ['Browser workflows',['tests/browser.mjs']]
+ ['Service monitoring',['tests/service-health.mjs']],
+ ['Browser workflows',['tests/browser.mjs']],
+ ['WebKit workflows',['tests/browser.mjs','--webkit']]
 ];
 const results=[];
 for(const [name,args] of checks){const start=performance.now();const result=spawnSync(process.execPath,args,{stdio:'inherit'});results.push({name,passed:result.status===0,ms:Math.round(performance.now()-start)});}

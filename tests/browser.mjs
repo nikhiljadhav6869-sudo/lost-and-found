@@ -1,6 +1,6 @@
 import {checkAccessibility} from './accessibility.mjs';
 import {checkMobileReturn} from './mobile-return.mjs';
-import {chromium} from '@playwright/test';
+import {chromium, webkit} from '@playwright/test';
 import {spawn} from 'node:child_process';
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
@@ -13,7 +13,9 @@ try{
  let ready=false;for(let i=0;i<100;i++){if(output.includes('Lost & Found running')){ready=true;break;}if(server.exitCode!==null)throw new Error(output);await new Promise(r=>setTimeout(r,100));}
  assert.ok(ready,'Isolated browser server did not start');
  const edge='C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
- browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_EXECUTABLE?{executablePath:process.env.PLAYWRIGHT_EXECUTABLE}:process.platform==='win32'&&fs.existsSync(edge)?{executablePath:edge}:{})});
+ const engine=process.argv.includes('--webkit')?webkit:chromium;
+ browser=await engine.launch({headless:true,...(engine===chromium?(process.env.PLAYWRIGHT_EXECUTABLE?{executablePath:process.env.PLAYWRIGHT_EXECUTABLE}:process.platform==='win32'&&fs.existsSync(edge)?{executablePath:edge}:{}):{})});
+ console.log('Browser engine: '+engine.name());
  fs.mkdirSync('.sites-runtime/browser',{recursive:true});
  const context=await browser.newContext({viewport:{width:1280,height:900}});
  const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));

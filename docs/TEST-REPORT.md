@@ -73,3 +73,13 @@ All 12 groups in `node scripts/verify.mjs` passed at 09:04 UTC, including the pr
 Automated axe-core 4.14 checks for WCAG 2 A/AA and 2.1 AA passed on the home page in both themes, login, registration, installation and report dialogs, and the mobile home layout. Muted text/footer contrast and modal keyboard focus were corrected. Tab containment, Escape and focus restoration passed. The two-account mobile claim/return browser flow also passed. Automated results do not establish full WCAG conformance or replace assistive-technology testing.
 
 Generic reports remain discoverable but cannot generate a score above 75 without an item description, category, colour or brand. An integration test verifies no alert is created for these reports after inference; informative high-similarity reports retain the existing two-owner notification behavior. See [the matching evaluation](AI-MATCHING.md) for measured limitations.
+
+## Follow-up verification — 5 November 2026
+
+All 14 groups in `npm run verify` passed at 03:16 UTC, including the new service-monitor tests and complete WebKit browser workflows. Chromium and WebKit passed axe checks on report detail, private claim, conversation and returned states as well as previously covered screens. The WebKit account-trigger focus issue was fixed. Both production dependency audits reported zero known advisories.
+
+The [fresh production email-failure scan](https://github.com/nikhiljadhav6869-sudo/lost-and-found/actions/runs/41960361151) passed. No new account email was sent and no real password was changed, respecting the automated-only email check preference. Provider logs were inaccessible because the browser session could not attach; actual Gmail/VIT arrival is unverified. The latest reviewed successful backup was [4 November's run](https://github.com/nikhiljadhav6869-sudo/lost-and-found/actions/runs/41793436520), within the new 36-hour limit; the schedule remained enabled. The stopped Windows AI worker was restarted.
+
+The new [field evaluation tool](MATCHING-FIELD-TEST.md) was exercised using six invented reports: three lost queries and three found candidates, including an unmatched wallet and a lookalike backpack. It counted two genuine pairs and seven unrelated pairs, alerted on both genuine pairs and one unrelated pair, and ranked one of the two answerable queries first correctly. This tiny synthetic run validates the evaluation path, not real accuracy. No production weights or thresholds were changed. Consent-based field data remains required.
+
+A separate reviewer can use [the review handoff](EXTERNAL-REVIEW.md). Independent review, actual inbox arrival and physical-device acceptance have not been marked complete.

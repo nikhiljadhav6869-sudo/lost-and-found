@@ -6,7 +6,7 @@ The existing administrator ID allowlist remains authoritative. Ordinary users ca
 
 Existing flag moderation can hide/restore reports. Hiding a report also removes its photo from public access unless another visible report references it. Private participant messages and evidence remain restricted to the participants.
 
-Operational event retention is 30 days. API logs record failures and slow requests over two seconds, not every request. Counters are not an uptime guarantee. The provider dashboards remain necessary for storage bytes/quotas and actual email delivery/bounces. Dedicated external alert delivery has not been configured.
+Operational event retention is 30 days. API logs record failures and slow requests over two seconds, not every request. Counters are not an uptime guarantee. The provider dashboards remain necessary for storage bytes/quotas and actual email delivery/bounces. GitHub operator alerts are configured as described below.
 
 ## Cleanup
 
@@ -52,3 +52,11 @@ An incident creates a generic GitHub issue assigned to the repository owner. Whi
 For a backup drill, manually run Private backups and maintenance on main with alert_drill enabled. This run intentionally fails before accessing production storage and the monitor creates a test issue. For the email drill, manually run Operator alerts on main with email-drill. It checks the threshold against in-memory events without sending account email. Use check mode to query actual email health.
 
 On 3 November 2026 the [backup drill notification](https://github.com/nikhiljadhav6869-sudo/lost-and-found/issues/1) and [repeated-email-failure drill notification](https://github.com/nikhiljadhav6869-sudo/lost-and-found/issues/2) both appeared in the repository owner's GitHub inbox. The two drill issues were then closed. The [production email health scan](https://github.com/nikhiljadhav6869-sudo/lost-and-found/actions/runs/41656433455) completed successfully without triggering an incident. The [scheduled backup](https://github.com/nikhiljadhav6869-sudo/lost-and-found/actions/runs/41600315504) preceding the drill passed.
+
+## Availability and overdue backups
+
+The same scheduled Operator alerts workflow now checks the public app configuration and worker availability with three attempts, allowing for cold starts. It also reads GitHub run history for a successful non-drill backup on main within 36 hours. It needs only read access to Actions and the public app for these checks; it does not receive database or photo credentials.
+
+Persistent app unavailability, worker unavailability, overdue backup and failure of the monitor itself each have a separate generic issue title. Existing open issues of that type suppress duplicates. Successful checks remain quiet; close an issue after reviewing recovery. Provider errors, private records and credentials are excluded from issues. A sleeping personal computer can legitimately trigger the worker alert while the website remains available.
+
+These checks run on the existing hourly target schedule, which GitHub can delay or disable. They are not continuous uptime monitoring and cannot alert when GitHub itself does not execute them. They do not measure remaining storage/bandwidth allowances. Review provider usage and actual recipient delivery separately.

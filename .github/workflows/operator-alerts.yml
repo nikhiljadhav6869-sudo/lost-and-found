@@ -76,3 +76,56 @@ jobs:
               process.env.SCAN_RESULT === 'failure' ? 'The monitor could not check email delivery health. Review the workflow run.' :
               'At least three account emails failed after retry handling within the last 24 hours. Review the private email provider logs.';
             await github.rest.issues.create({owner,repo,title,assignees:[owner],body:text+'\n\n[Workflow run](https://github.com/'+owner+'/'+repo+'/actions/runs/'+run+'). Close this issue after review.'});
+  service:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'workflow_run' && inputs.mode != 'email-drill'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      attention: ${{ steps.health.outputs.attention }}
+      problems: ${{ steps.health.outputs.problems }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - id: health
+        run: node scripts/service-health.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+  service-notify:
+    needs: service
+    if: always() && (needs.service.result == 'failure' || needs.service.outputs.attention == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    concurrency:
+      group: service-health-notification
+      cancel-in-progress: false
+    steps:
+      - uses: actions/github-script@v7
+        env:
+          HEALTH_RESULT: ${{ needs.service.result }}
+          HEALTH_PROBLEMS: ${{ needs.service.outputs.problems }}
+        with:
+          script: |
+            const {owner,repo}=context.repo;
+            const kinds=process.env.HEALTH_RESULT==='failure'?['monitor-unavailable']:process.env.HEALTH_PROBLEMS.split(',');
+            const descriptions={
+              'app-unavailable':['App unavailable','The public app did not return a valid configuration after three attempts. Check hosting and database status.'],
+              'worker-offline':['AI worker offline','The app is available, but the AI worker is offline. Check that the configured computer is awake, connected and running its worker task.'],
+              'backup-overdue':['Backup overdue','No successful non-drill backup on main was found within 36 hours. Check schedule status and the latest backup run.'],
+              'monitor-unavailable':['Service monitor unavailable','The service monitor could not complete. Review the workflow before relying on its results.'],
+            };
+            const open=await github.paginate(github.rest.issues.listForRepo,{owner,repo,state:'open',creator:'github-actions[bot]',per_page:100});
+            for(const kind of kinds){
+              const detail=descriptions[kind];if(!detail)throw Error('Unknown health result');
+              const title='[Operator alert] '+detail[0];
+              if(open.some(issue=>!issue.pull_request&&issue.title===title))continue;
+              await github.rest.issues.create({owner,repo,title,assignees:[owner],body:detail[1]+'\n\n[Workflow run](https://github.com/'+owner+'/'+repo+'/actions/runs/'+context.runId+'). Close this issue after review.'});
+            }
