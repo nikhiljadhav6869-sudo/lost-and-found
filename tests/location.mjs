@@ -1,0 +1,21 @@
+import assert from 'node:assert/strict';
+import {approximateLocation,locationPoint,googleMapsUrl,distanceKm} from '../lib/location.ts';
+import {match} from '../.sites-runtime/test-entry.mjs';
+assert.equal(approximateLocation(18.520430,73.856743),'Near 18.520, 73.857');
+assert.equal(approximateLocation(-33.856784,151.215297),'Near -33.857, 151.215');
+for(const coordinates of [[NaN,0],[0,Infinity],[91,0],[0,-181]])assert.throws(()=>approximateLocation(...coordinates));
+assert.equal(locationPoint('Library Pune'),null);
+assert.equal(locationPoint('Near 91.000, 0.000'),null);
+assert.equal(new URL(googleMapsUrl('Near 18.520, 73.857')).searchParams.get('query'),'18.52,73.857');
+assert.equal(new URL(googleMapsUrl('Library & Café #2')).searchParams.get('query'),'Library & Café #2');
+const a={id:'lost',type:'lost',title:'Green canvas bag',description:'Canvas bag with straps',category:'Bags',colour:'Green',brand:'Field',date:'2026-11-05',status:'Open',location:'Near 18.520, 73.857'};
+const b={...a,id:'found',type:'found',location:'Near 18.521, 73.858'};
+assert.ok(match(a,b).reasons.includes('Nearby map locations (within 2 km)'));
+// Matching decimal fragments in different cities must not count as nearby places.
+const distant={...b,location:'Near 28.520, 83.857'};
+assert.equal(match(a,b).score-match(a,distant).score,10);
+assert.ok(!match(a,distant).reasons.some(r=>/location/i.test(r)));
+assert.ok(!match(a,{...b,location:'Street 520 Library'}).reasons.some(r=>/location/i.test(r)));
+assert.ok(match({...a,location:'Central Library Pune'},{...b,location:'Pune Library'}).reasons.includes('Overlapping location'));
+assert.ok(distanceKm({latitude:0,longitude:179.999},{latitude:0,longitude:-179.999})<1);
+console.log('PASS rounded coordinates, safe Google Maps links and distance-based location matching');

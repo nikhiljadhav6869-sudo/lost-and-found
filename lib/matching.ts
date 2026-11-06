@@ -1,3 +1,4 @@
+import {locationPoint,distanceKm} from './location';
 export type Matchable = {
     id: string;
     type: string;
@@ -55,10 +56,11 @@ export function match(a: Matchable, b: Matchable) {
         score += 10;
         reasons.push('Compatible dates');
     }
+    const ap=locationPoint(a.location),bp=locationPoint(b.location);
     const al = tokens(a.location), bl = tokens(b.location);
-    if ([...al].some(t => bl.has(t))) {
+    if (ap && bp ? distanceKm(ap,bp)<=2 : !ap && !bp && [...al].some(t => bl.has(t))) {
         score += 10;
-        reasons.push('Overlapping location');
+        reasons.push(ap && bp ? 'Nearby map locations (within 2 km)' : 'Overlapping location');
     }
     if (!hasItemIdentity(a) || !hasItemIdentity(b)) score = Math.min(score, STRONG_MATCH_THRESHOLD);
     return { score, reasons };

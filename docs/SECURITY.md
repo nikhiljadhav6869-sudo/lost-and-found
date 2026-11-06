@@ -8,6 +8,8 @@ Archives are encrypted before upload. The destination must be a separate private
 
 Private conversations/account pages are never service-worker cached. Report drafts automatically store typed fields, including private notes and uploaded photo references, in account-scoped localStorage on the current device. This device-local storage is not encrypted; the form discloses it and advises using a personal device. Drafts expire after seven days and are removed on publication, explicit discard or sign-out. They are not synced to other devices; unavailable storage produces a visible warning. Publicly published item photos are intentionally readable through the app; unpublished/hidden-only photos require ownership.
 
+Location access is click-triggered and permission-controlled. Precise device coordinates are discarded after rounding to three decimal places; the resulting approximate area is visible in the form before publication. No reverse-geocoding service is called. Google receives the selected map query only when a user opens the Google Maps link. Permission denial, timeout and unavailable location leave manual entry usable; late callbacks cannot overwrite a newer manual correction or a closed form.
+
 Remaining limits:
 - This is not an independent penetration test or compliance certification.
 - Server image validation removes metadata and checks structure; it is not antivirus scanning. The worker decodes images in its separate process.

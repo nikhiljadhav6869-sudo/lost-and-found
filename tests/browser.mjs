@@ -1,4 +1,5 @@
 import {checkDraftRecovery} from './draft-recovery.mjs';
+import {checkLocation} from './location-browser.mjs';
 import {checkQuickFound} from './quick-found.mjs';
 import {checkAccessibility} from './accessibility.mjs';
 import {checkMobileReturn} from './mobile-return.mjs';
@@ -97,4 +98,5 @@ try{
  await checkMobileReturn(browser, origin);
  await checkQuickFound(browser, origin);
  await checkDraftRecovery(browser, origin);
+ await checkLocation(browser, origin);
 }finally{if(browser)await browser.close();server.kill();}

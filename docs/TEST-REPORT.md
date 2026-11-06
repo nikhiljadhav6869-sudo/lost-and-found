@@ -87,3 +87,7 @@ A separate reviewer can use [the review handoff](EXTERNAL-REVIEW.md). Independen
 ## Automatic report recovery — 6 November 2026
 
 Chromium and WebKit tests recovered lost and found reports after navigation away, reload, cancellation of a file picker, and reopening in a fresh tab. Titles, descriptions, location, category, date, colour, brand, private notes and completed photo uploads were preserved. Edit drafts restored to the original report. Publication, explicit discard and sign-out cleared the appropriate drafts; another account could not restore them. Unavailable browser storage displayed a warning while retaining the current form. These automated tests simulate page loss; a physical-phone camera handoff still needs confirmation on the user's device.
+
+## Current location and Google Maps — 6 November 2026
+
+Chromium and WebKit used simulated device coordinates to confirm that location is requested only after clicking the button in either report type. Tests verified rounded coordinates in drafts, Google Maps URL encoding, persistence after reload, permission denial, unavailable position, timeout, manual correction during an outstanding request, and ignoring callbacks after closing the form. Accessibility checks passed in both themes. Matching tests verify nearby map points, distant points sharing decimal fragments, text-only place matching, invalid coordinates and antimeridian distance. Actual Android/iPhone location permission and GPS accuracy remain physical-device checks.
