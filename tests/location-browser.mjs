@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {expect} from '@playwright/test';
 import {randomBytes} from 'node:crypto';
 import {checkAccessibility} from './accessibility.mjs';
 export async function checkLocation(browser,origin,sessionCookies) {
@@ -43,7 +44,9 @@ export async function checkLocation(browser,origin,sessionCookies) {
   }
   await page.evaluate(()=>{navigator.geolocation.getCurrentPosition=success=>{window.delayedLocation=success;};});
   await dialog.getByRole('button',{name:'Use current location',exact:true}).click();
+  await expect(dialog.getByRole('button',{name:'Publish report',exact:true})).toBeDisabled();
   await input.fill('Manually corrected location');
+  await expect(dialog.getByRole('button',{name:'Publish report',exact:true})).toBeEnabled();
   await page.evaluate(()=>window.delayedLocation({coords:{latitude:20,longitude:70,accuracy:20}}));
   assert.equal(await input.inputValue(),'Manually corrected location','A late location result must not overwrite manual edits');
   await dialog.getByRole('button',{name:'Use current location',exact:true}).click();

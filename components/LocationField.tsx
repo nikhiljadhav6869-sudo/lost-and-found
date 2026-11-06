@@ -3,12 +3,13 @@ import {useEffect,useId,useRef,useState} from 'react';
 import {MapPin,Loader2,ArrowUpRight} from 'lucide-react';
 import {approximateLocation,googleMapsUrl} from '../lib/location';
 
-export default function LocationField({value,type,disabled,onChange}:{value:string;type:string;disabled:boolean;onChange:(value:string)=>void}) {
+export default function LocationField({value,type,disabled,onChange,onPendingChange}:{value:string;type:string;disabled:boolean;onChange:(value:string)=>void;onPendingChange:(pending:boolean)=>void}) {
     const id=useId(),sequence=useRef(0);
     const [locating,setLocating]=useState(false),[message,setMessage]=useState(''),[failed,setFailed]=useState(false);
+    const setPending=(pending:boolean)=>{setLocating(pending);onPendingChange(pending);};
     useEffect(()=>()=>{sequence.current++;},[]);
     function manual(value:string) {
-        sequence.current++;setLocating(false);setMessage('');setFailed(false);onChange(value);
+        sequence.current++;setPending(false);setMessage('');setFailed(false);onChange(value);
     }
     function locate() {
         const request=++sequence.current;
@@ -16,14 +17,14 @@ export default function LocationField({value,type,disabled,onChange}:{value:stri
         if(!navigator.geolocation || !window.isSecureContext) {
             setFailed(true);setMessage('Location is unavailable in this browser. You can type a nearby place instead.');return;
         }
-        setLocating(true);
-        const failure=(text:string)=>{if(request!==sequence.current)return;setLocating(false);setFailed(true);setMessage(text);};
+        setPending(true);
+        const failure=(text:string)=>{if(request!==sequence.current)return;setPending(false);setFailed(true);setMessage(text);};
         try {
             navigator.geolocation.getCurrentPosition(position=>{
                 if(request!==sequence.current)return;
                 try {
                     const area=approximateLocation(position.coords.latitude,position.coords.longitude);
-                    onChange(area);setLocating(false);
+                    onChange(area);setPending(false);
                     setMessage(position.coords.accuracy>1000 ? 'Your phone returned a broad estimate. Check it on Google Maps or type a nearby landmark.' : 'Approximate area added. Check it on Google Maps or replace it with a nearby landmark.');
                 }catch{failure('Your location could not be read. Try again or type a nearby place.');}
             },error=>failure(error.code===1?'Location access was not allowed. Enable it in your browser settings or type a place.':error.code===3?'Finding your location took too long. Try again outdoors or type a place.':'Your phone could not find its location. Check that Location is enabled, or type a place.'),{enableHighAccuracy:true,timeout:12000,maximumAge:0});
