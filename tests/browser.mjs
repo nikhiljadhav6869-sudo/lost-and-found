@@ -98,5 +98,5 @@ try{
  await checkMobileReturn(browser, origin);
  await checkQuickFound(browser, origin);
  await checkDraftRecovery(browser, origin);
- await checkLocation(browser, origin);
+ await checkLocation(browser, origin, await context.cookies());
 }finally{if(browser)await browser.close();server.kill();}

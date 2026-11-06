@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {randomBytes} from 'node:crypto';
 import {checkAccessibility} from './accessibility.mjs';
-export async function checkLocation(browser,origin) {
+export async function checkLocation(browser,origin,sessionCookies) {
  const context=await browser.newContext({viewport:{width:390,height:844},permissions:['geolocation'],geolocation:{latitude:18.520430,longitude:73.856743,accuracy:30}});
  context.setDefaultTimeout(20000);
  try {
@@ -10,8 +10,12 @@ export async function checkLocation(browser,origin) {
    const original=navigator.geolocation.getCurrentPosition.bind(navigator.geolocation);
    navigator.geolocation.getCurrentPosition=(...args)=>{window.locationCalls++;return original(...args);};
   });
-  const signup=await context.request.post(origin+'/api/auth/sign-up/email',{headers:{origin},data:{name:'Location Tester',email:'location@ui.test',password:randomBytes(24).toString('hex')}});
-  assert.equal(signup.status(),200);
+  // Reuse the suite's authenticated account so fast CI runs don't exhaust signup limits.
+  if(sessionCookies) await context.addCookies(sessionCookies);
+  else {
+   const signup=await context.request.post(origin+'/api/auth/sign-up/email',{headers:{origin},data:{name:'Location Tester',email:'location@ui.test',password:randomBytes(24).toString('hex')}});
+   assert.equal(signup.status(),200);
+  }
   const page=await context.newPage();await page.goto(origin);await page.waitForFunction(()=>!!document.querySelector('.avatar'));
   const dialog=page.getByRole('dialog'),input=dialog.getByLabel('Approximate location');
   for(const type of ['found','lost']) {
