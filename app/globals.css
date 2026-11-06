@@ -41,3 +41,5 @@
  .manage-list p,.notice-list>button,.detail-tools button,.confirmation-box .button,.message-compose .button,.conversation-title .text-button{font-size:14px}.message-compose textarea{font-size:16px}.timeline>div{font-size:12px}.empty p{font-size:14px}.toast{font-size:14px}.report-actions{width:100%}.report-actions .button{flex:1}
 }
 @media(max-width:360px){.theme-toggle span{max-width:40px;white-space:normal;line-height:1.15}.site-header .brand{font-size:16px}.header-actions{gap:3px}}
+
+.draft-status{font-size:13px;color:var(--muted);line-height:1.5;margin:0 0 16px}.draft-status[role=alert]{color:var(--ink);border-left:3px solid var(--coral);padding-left:10px}

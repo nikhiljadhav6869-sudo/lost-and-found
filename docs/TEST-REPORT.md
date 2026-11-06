@@ -21,7 +21,7 @@ The runner writes machine-readable results to ignored `.sites-runtime/verificati
 
 ## Browser and visual verification
 
-Headless Microsoft Edge used a fresh isolated browser context and local production build. Four groups cover real/demo discovery, truthful unavailable-AI state, installation link/dialog behavior, a real synthetic signup, public-only draft restore, duplicate review, publication and offline indication. Width checks at 375, 390 and 768 pixels found no horizontal overflow; desktop used 1280 pixels. No uncaught page errors occurred. Mobile and desktop screenshots were inspected. These checks do not establish physical-phone installation or native prompt support.
+Headless Microsoft Edge used a fresh isolated browser context and local production build. Four groups cover real/demo discovery, truthful unavailable-AI state, installation link/dialog behavior, a real synthetic signup, automatic draft restore, duplicate review, publication and offline indication. Width checks at 375, 390 and 768 pixels found no horizontal overflow; desktop used 1280 pixels. No uncaught page errors occurred. Mobile and desktop screenshots were inspected. These checks do not establish physical-phone installation or native prompt support.
 
 Screenshots are generated under ignored `.sites-runtime/browser/`. CI installs Chromium and runs the same script. Browser tests are additive to the existing API tests for the full two-person claim/message/approval/return process; that entire process has not yet been automated through two physical phone interfaces.
 
@@ -45,7 +45,7 @@ Final portable browser build: main JavaScript 263.50 kB (81.56 kB gzip); stylesh
 - Stale inference and reports hidden mid-job no longer count as successful work; restored/reopened active reports requeue safely.
 - Exhausted final worker leases now become terminal failures, release search capacity and reject query vectors from obsolete models. Oversized image headers are checked before full decode; database-only backups enforce the same 64 MB bound as photo archives.
 - Invalid normalized calendar dates are rejected, case-insensitive colour search works, and demo browsing no longer mixes samples into real discovery.
-- Optional draft storage excludes private evidence and photos; restoring a draft leaves private fields empty.
+- Automatic device-local drafts preserve typed fields, private notes and completed photo uploads. They are scoped to the signed-in account and cleared on publication, discard or sign-out.
 - Transient mail retries are bounded; permanent rejection and request errors are sanitized.
 
 No test group failed in the final local run. An intermediate sandboxed run could not connect to localhost or launch Edge; rerunning with approved network/browser access passed. The separate image-header regression suite and isolated schema-generation check also passed. Expected negative-test messages from Better Auth/provider rejection are not suite failures. The application workflow tests use an isolated Playwright browser; the existing Render dashboard is checked separately through browser control.
@@ -83,3 +83,7 @@ The [fresh production email-failure scan](https://github.com/nikhiljadhav6869-su
 The new [field evaluation tool](MATCHING-FIELD-TEST.md) was exercised using six invented reports: three lost queries and three found candidates, including an unmatched wallet and a lookalike backpack. It counted two genuine pairs and seven unrelated pairs, alerted on both genuine pairs and one unrelated pair, and ranked one of the two answerable queries first correctly. This tiny synthetic run validates the evaluation path, not real accuracy. No production weights or thresholds were changed. Consent-based field data remains required.
 
 A separate reviewer can use [the review handoff](EXTERNAL-REVIEW.md). Independent review, actual inbox arrival and physical-device acceptance have not been marked complete.
+
+## Automatic report recovery — 6 November 2026
+
+Chromium and WebKit tests recovered lost and found reports after navigation away, reload, cancellation of a file picker, and reopening in a fresh tab. Titles, descriptions, location, category, date, colour, brand, private notes and completed photo uploads were preserved. Edit drafts restored to the original report. Publication, explicit discard and sign-out cleared the appropriate drafts; another account could not restore them. Unavailable browser storage displayed a warning while retaining the current form. These automated tests simulate page loss; a physical-phone camera handoff still needs confirmation on the user's device.

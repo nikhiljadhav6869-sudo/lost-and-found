@@ -1,3 +1,4 @@
+import {checkDraftRecovery} from './draft-recovery.mjs';
 import {checkQuickFound} from './quick-found.mjs';
 import {checkAccessibility} from './accessibility.mjs';
 import {checkMobileReturn} from './mobile-return.mjs';
@@ -64,23 +65,21 @@ try{
  await form.getByLabel('Public description').fill('Green canvas backpack with brown straps.');
  await form.getByLabel('Approximate location').fill('Library');
  await form.getByText('Add more details (optional)',{exact:true}).click();
- await form.getByText('Save a draft or check my similar reports',{exact:true}).click();
- await form.getByLabel('Private distinguishing features').fill('PRIVATE-NOT-IN-DRAFT');
- await form.getByLabel('Save public draft details in this browser tab').check();
- await page.waitForFunction(()=>Object.keys(sessionStorage).some(k=>k.startsWith('lf-draft-v1:')));
- const saved=await page.evaluate(()=>Object.entries(sessionStorage).filter(([k])=>k.startsWith('lf-draft-v1:')));
- assert.ok(saved.length);assert.ok(!JSON.stringify(saved).includes('PRIVATE-NOT-IN-DRAFT'));
- await form.getByRole('button',{name:'Cancel',exact:true}).click();
+ await form.getByText('Draft options & similar reports',{exact:true}).click();
+ await form.getByLabel('Private distinguishing features').fill('PRIVATE-DRAFT-NOTE');
+ const saved=await page.evaluate(()=>Object.entries(localStorage).filter(([k])=>k.startsWith('lf-report-draft-v2:')));
+ assert.ok(saved.length);assert.ok(JSON.stringify(saved).includes('PRIVATE-DRAFT-NOTE'));
+ await form.getByRole('button',{name:'Save & close',exact:true}).click();
  await page.getByRole('button',{name:'I lost something',exact:true}).first().click();
- await form.getByText('Save a draft or check my similar reports',{exact:true}).click();
- await form.getByRole('button',{name:'Restore saved draft',exact:true}).click();
+ await form.getByText('Draft options & similar reports',{exact:true}).click();
  assert.equal(await form.getByLabel('Item name').inputValue(),'Browser draft backpack');
- assert.equal(await form.getByLabel('Private distinguishing features').inputValue(),'');
+ assert.equal(await form.getByLabel('Private distinguishing features').inputValue(),'PRIVATE-DRAFT-NOTE');
  await form.getByRole('button',{name:'Check my similar reports',exact:true}).click();
  await form.getByText('No close duplicate found among your latest active reports.').waitFor();
  await form.getByRole('button',{name:'Publish report',exact:true}).click();
  await page.getByRole('heading',{name:'Browser draft backpack',exact:true}).waitFor();
- console.log('PASS browser draft privacy, restoration, duplicate review and publication');
+ assert.equal(await page.evaluate(()=>Object.keys(localStorage).filter(k=>k.startsWith('lf-report-draft-v2:')).length),0);
+ console.log('PASS browser automatic draft restoration, duplicate review and cleanup after publication');
  await page.keyboard.press('Escape');
  for(const width of [375,390,768]){
    await page.setViewportSize({width,height:844});await page.goto(origin);
@@ -97,4 +96,5 @@ try{
  console.log('PASS browser mobile-width layout, offline status and no uncaught page errors');
  await checkMobileReturn(browser, origin);
  await checkQuickFound(browser, origin);
+ await checkDraftRecovery(browser, origin);
 }finally{if(browser)await browser.close();server.kill();}

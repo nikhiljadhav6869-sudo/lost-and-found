@@ -1,4 +1,5 @@
 import {isolate} from './environment.mjs';
+import './report-drafts.mjs';
 isolate('base');
 import {build} from 'esbuild';
 import path from 'node:path';

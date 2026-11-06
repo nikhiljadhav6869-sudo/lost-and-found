@@ -17,7 +17,7 @@ This upgrade extends the existing React, Node, Better Auth, Turso/libSQL and pri
 
 ## Additional improvements
 
-Search supports colour alongside existing type/category/location/date/status filters. Optional tab-local drafts store only public fields, exclude private evidence/photos and expire after seven days. Duplicate review compares the owner's recent public report details before publication. Notification preferences affect match alerts independently of claim/return messages. Admin analytics separate real reports from samples and measure only returns with a recorded resolution timestamp.
+Search supports colour alongside existing type/category/location/date/status filters. Account-specific drafts save automatically on this device, including private notes and uploaded photo references. They restore after reloads and expire after seven days; publication, explicit discard and sign-out remove them. Duplicate review compares the owner's recent public report details before publication. Notification preferences affect match alerts independently of claim/return messages. Admin analytics separate real reports from samples and measure only returns with a recorded resolution timestamp.
 
 AI runs outside the web server. The ordinary app continues working when the worker is unavailable and describes that state accurately. Models are not shipped to browsers; no private ownership evidence is used for inference or automatic training.
 
