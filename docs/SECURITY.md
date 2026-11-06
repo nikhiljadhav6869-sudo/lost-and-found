@@ -6,7 +6,7 @@ New safeguards: owner-scoped private search jobs, no arbitrary image URL fetchin
 
 Archives are encrypted before upload. The destination must be a separate private bucket; remote objects are read back before retention pruning. Passwords, keys, private database files, inference caches and signing material are excluded from Git/Docker contexts. Backup exports require the same application schema when restoring.
 
-Private conversations/account pages are never service-worker cached. Optional drafts store intended-public fields only in sessionStorage, after an explicit checkbox. Publicly published item photos are intentionally readable through the app; unpublished/hidden-only photos require ownership.
+Private conversations/account pages are never service-worker cached. Report drafts automatically store typed fields, including private notes and uploaded photo references, in account-scoped localStorage on the current device. This device-local storage is not encrypted; the form discloses it and advises using a personal device. Drafts expire after seven days and are removed on publication, explicit discard or sign-out. They are not synced to other devices; unavailable storage produces a visible warning. Publicly published item photos are intentionally readable through the app; unpublished/hidden-only photos require ownership.
 
 Remaining limits:
 - This is not an independent penetration test or compliance certification.
