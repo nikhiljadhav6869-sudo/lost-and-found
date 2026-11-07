@@ -1,5 +1,6 @@
 import {checkDraftRecovery} from './draft-recovery.mjs';
 import {checkLocation} from './location-browser.mjs';
+import {checkReportOptions} from './report-options.mjs';
 import {checkQuickFound} from './quick-found.mjs';
 import {checkAccessibility} from './accessibility.mjs';
 import {checkMobileReturn} from './mobile-return.mjs';
@@ -81,6 +82,7 @@ try{
  await page.getByRole('heading',{name:'Browser draft backpack',exact:true}).waitFor();
  assert.equal(await page.evaluate(()=>Object.keys(localStorage).filter(k=>k.startsWith('lf-report-draft-v2:')).length),0);
  console.log('PASS browser automatic draft restoration, duplicate review and cleanup after publication');
+ await checkReportOptions(page);
  await page.keyboard.press('Escape');
  for(const width of [375,390,768]){
    await page.setViewportSize({width,height:844});await page.goto(origin);
