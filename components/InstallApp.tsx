@@ -47,7 +47,7 @@ function InstallInstructions({ close, install, busy }: { close: () => void; inst
                     <li>Tap the <strong>three-dot menu ⋮</strong>.</li>
                     <li>Choose <strong>Add to Home screen</strong> or <strong>Install app</strong>, then confirm.</li>
                 </ol>
-                <p>For the Android 7.0+ test release, <a href="https://github.com/nikhiljadhav6869-sudo/lost-and-found/releases/download/android-v1.0.0/Lost-and-Found-1.0.0.apk">download the Android APK</a>, open the file, then tap <strong>Install</strong>.</p>
+                <p>For the Android 7.0+ test release, <a href="/download/android" download="Lost-and-Found.apk">download the Android APK</a>, open the file, then tap <strong>Install</strong>.</p>
             </section>
             <section aria-labelledby={`${headingId}-iphone`}>
                 <h3 id={`${headingId}-iphone`}><Share size={18} aria-hidden="true" /> iPhone · Safari</h3>

@@ -53,6 +53,12 @@ try{
  await page.goto(origin+'/?install=1');
  await page.getByRole('dialog').filter({has:page.getByRole('heading',{name:'Lost & Found on your phone'})}).waitFor();
  await checkAccessibility(page,'install');
+ const apkDownload=page.waitForEvent('download');
+ await page.getByRole('link',{name:'download the Android APK',exact:true}).click();
+ const apkFile=await apkDownload;
+ assert.equal(apkFile.suggestedFilename(),'Lost-and-Found.apk');
+ assert.equal(apkFile.url(),origin+'/download/android');
+ assert.equal(await apkFile.failure(),null);
  await page.getByRole('button',{name:'Got it',exact:true}).click();
  assert.ok(!page.url().includes('install='));
  console.log('PASS browser installation link and dismiss behavior');

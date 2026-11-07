@@ -19,6 +19,14 @@ export const server=http.createServer(async(req,res)=>{
   const url=new URL(req.url,publicOrigin);
   if(url.origin!==new URL(publicOrigin).origin){res.writeHead(400);res.end('Invalid request origin');return;}
   if(url.pathname==='/healthz'){res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end('{"ok":true}');return;}
+  if(url.pathname==='/download/android'||url.pathname==='/downloads/Lost-and-Found.apk'){
+   if(!['GET','HEAD'].includes(req.method)){res.writeHead(405,{'Allow':'GET, HEAD'});res.end();return;}
+   const apk=path.join(root,'downloads','Lost-and-Found.apk');
+   if(!fs.existsSync(apk)){res.writeHead(503,{'Content-Type':'text/plain; charset=utf-8','Cache-Control':'no-store','Retry-After':'60'});res.end(req.method==='HEAD'?undefined:'The Android download is temporarily unavailable. Please try again shortly.');return;}
+   res.writeHead(200,{'Content-Type':'application/vnd.android.package-archive','Content-Disposition':'attachment; filename="Lost-and-Found.apk"','Content-Length':fs.statSync(apk).size,'Cache-Control':'public, max-age=3600'});
+   if(req.method==='HEAD')res.end();else fs.createReadStream(apk).on('error',()=>res.destroy()).pipe(res);
+   return;
+  }
   if(url.pathname==='/.well-known/assetlinks.json'){
    const association=path.join(root,'.well-known','assetlinks.json');
    if(!fs.existsSync(association)){res.writeHead(404);res.end();return;}
