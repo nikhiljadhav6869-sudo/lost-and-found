@@ -4,7 +4,14 @@ A full-stack community lost-and-found application, with a responsive teal/navy/c
 
 **[Open the public app](https://lost-and-found-yzfl.onrender.com/)**. Create an account and verify your email to report an item or contact its finder. On a phone, use the app's **Install app** instructions to add it to your home screen. An internet connection is required.
 
-**[Download and installation guide](https://lost-and-found-yzfl.onrender.com/downloads/install.html)** — [download the signed Android APK](https://lost-and-found-yzfl.onrender.com/download/android), or [open the iPhone/web app installation steps](https://lost-and-found-yzfl.onrender.com/?install=1). iPhone uses Safari's **Share → Add to Home Screen**, not an App Store download. Your phone requires installation confirmation.
+## Download, install and share
+
+1. **[Download Android app](https://lost-and-found-yzfl.onrender.com/download/android)** — signed APK for Android 7 or newer. Open the downloaded file and confirm installation on your phone.
+2. **[Install on iPhone](https://lost-and-found-yzfl.onrender.com/?install=1)** — open in Safari, then **Share → Add to Home Screen**. This installs the web app, not an App Store package.
+3. **[Open web app](https://lost-and-found-yzfl.onrender.com/)** — use the app directly in your browser.
+4. **[Download installation QR code](https://lost-and-found-yzfl.onrender.com/downloads/install-qr.png)** — save or print it so others can scan to open the installation guide.
+
+See the **[complete installation guide](https://lost-and-found-yzfl.onrender.com/downloads/install.html)** for all options. The free server may need about a minute to wake up after inactivity.
 
 Scan this QR code to open the installation link:
 
