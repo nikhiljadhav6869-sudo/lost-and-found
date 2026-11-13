@@ -49,7 +49,7 @@ try{
  const drill=bytes=>verifyBackupRestore(bytes,password,{temporaryDirectory});
  corrupt=false;let checked;
  await store.save(archive,new Date(time),{verify:received=>{assert.deepEqual(received,archive);checked=drill(received);}});
- assert.deepEqual(checked,{tables:22,photos:0});
+ assert.deepEqual(checked,{tables:32,photos:0});
  assert.deepEqual(fs.readdirSync(temporaryDirectory),['keep.txt']);
  assert.equal(fs.readFileSync(path.join(temporaryDirectory,'keep.txt'),'utf8'),'existing sibling');
  await assert.rejects(()=>store.save(archive,new Date(time),{verify:received=>verifyBackupRestore(received,'wrong-password-long-enough',{temporaryDirectory})}));

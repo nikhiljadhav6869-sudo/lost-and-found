@@ -1,0 +1,11 @@
+'use client';
+import {useEffect,useRef,useState} from 'react';
+import {useLanguage,t as tr} from '../lib/i18n';
+export default function VoiceEntry({onText}:{onText:(text:string)=>void}){
+ const language=useLanguage(),[listening,setListening]=useState(false),[error,setError]=useState(''),[text,setText]=useState('');const recognition=useRef<any>(null);
+ const supported=typeof window!=='undefined'&&((window as any).SpeechRecognition||(window as any).webkitSpeechRecognition);
+ useEffect(()=>()=>{if(recognition.current){recognition.current.onresult=null;recognition.current.onerror=null;recognition.current.onend=null;recognition.current.abort();}},[]);
+ const label=language==='hi'?'बोलकर विवरण जोड़ें':language==='mr'?'बोलून वर्णन जोडा':'Speak a description';
+ function start(){if(listening){recognition.current?.stop();return;}setError('');const r=new supported();recognition.current=r;r.lang=language==='hi'?'hi-IN':language==='mr'?'mr-IN':'en-IN';r.interimResults=false;r.continuous=false;r.onresult=(event:any)=>{setText(String(event.results[0][0].transcript).slice(0,2000));};r.onerror=()=>{setError(language==='hi'?'आवाज़ उपलब्ध नहीं। कृपया टाइप करें।':language==='mr'?'आवाज उपलब्ध नाही. कृपया लिहा.':'Voice entry is unavailable. Please type instead.');setListening(false);};r.onend=()=>setListening(false);try{r.start();setListening(true);}catch{setError('Voice entry could not start. Please type instead.');}}
+ return <details className="optional-details"><summary>{label}</summary><p>{language==='hi'?'आपका ब्राउज़र आवाज़ को अपने सेवा प्रदाता के पास भेज सकता है। निजी पहचान विवरण न बोलें।':language==='mr'?'तुमचा ब्राउझर आवाज सेवा प्रदात्याकडे पाठवू शकतो. खाजगी ओळख तपशील बोलू नका.':'Your browser may send audio to its speech provider. Do not dictate private identity details.'}</p>{supported?<button type="button" className="button secondary" onClick={start}>{listening?tr('Stop listening'):label}</button>:<p>{tr('Voice entry is not supported by this browser. You can type normally.')}</p>}{error&&<p role="alert">{tr(error)}</p>}{text&&<><label>{label}<textarea value={text} maxLength={2000} onChange={e=>setText(e.target.value)}/></label><button type="button" className="button secondary" onClick={()=>{onText(text);setText('');}}>{language==='hi'?'विवरण में जोड़ें':language==='mr'?'वर्णनात जोडा':'Use this description'}</button></>}</details>;
+}

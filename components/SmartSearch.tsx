@@ -3,7 +3,7 @@ import { MAX_PHOTO_BYTES } from '../lib/photo-limits.mjs';
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { requestJson } from '../lib/request';
-export default function SmartSearch({ onOpen, signedIn }: { onOpen: (id: string) => void; signedIn: boolean }) {
+export default function SmartSearch({ onOpen, signedIn,workspaceId='' }: { onOpen: (id: string) => void; signedIn: boolean;workspaceId?:string }) {
     const [query,setQuery]=useState(''), [image,setImage]=useState(''), [job,setJob]=useState('');
     const [state,setState]=useState(''), [error,setError]=useState(''), [items,setItems]=useState<Record<string,any>[]>([]);
     const [busy,setBusy]=useState(false), [available,setAvailable]=useState<boolean|null>(null);
@@ -29,7 +29,7 @@ export default function SmartSearch({ onOpen, signedIn }: { onOpen: (id: string)
     },[job]);
     async function submit(e:FormEvent) {
         e.preventDefault();setBusy(true);setError('');setItems([]);setState('');
-        try {const d=await requestJson('smart-search',{query,image:image||undefined});setJob(d.id);setState(d.state);}
+        try {const d=await requestJson('smart-search',{query,image:image||undefined,workspaceId:workspaceId||null});setJob(d.id);setState(d.state);}
         catch(e){setError((e as Error).message);setBusy(false);}
     }
     return <section className="muted-box" aria-label="Smart search"><h3>Search by description or photo</h3>

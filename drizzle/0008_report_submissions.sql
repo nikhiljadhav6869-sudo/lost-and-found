@@ -1,0 +1,1 @@
+CREATE TABLE report_submissions(userId TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,submissionId TEXT NOT NULL,reportId TEXT NOT NULL,requestHash TEXT NOT NULL,created INTEGER NOT NULL,PRIMARY KEY(userId,submissionId));

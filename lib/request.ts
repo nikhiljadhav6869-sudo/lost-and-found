@@ -3,13 +3,13 @@ export class RequestError extends Error {
 }
 
 /** Retry reads only. Retrying a submission after a timeout could duplicate it. */
-export async function requestJson(path: string, body?: unknown, method = body === undefined ? 'GET' : 'POST') {
+export async function requestJson(path: string, body?: unknown, method = body === undefined ? 'GET' : 'POST', expectedUserId?:string) {
     const attempts = method === 'GET' ? 2 : 1;
     for (let attempt = 0; attempt < attempts; attempt++) {
         try {
             const response = await fetch('/api/' + path, {
                 method, credentials: 'same-origin', cache: 'no-store', signal: AbortSignal.timeout(25000),
-                headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+                headers: {...(body === undefined ? {} : { 'Content-Type': 'application/json' }),...(expectedUserId?{'X-Expected-User':expectedUserId}:{})},
                 body: body === undefined ? undefined : JSON.stringify(body),
             });
             if ([502, 503, 504].includes(response.status)) throw new RequestError('The server is starting or temporarily unavailable. Please retry shortly.', '', response.status);

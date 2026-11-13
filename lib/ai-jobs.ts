@@ -3,6 +3,7 @@ import { env } from 'cloudflare:workers';
 import { MODEL_VERSION, publicEmbeddingText } from './intelligence';
 import { recordOperation } from './operations';
 import { notifyStrongMatches } from '../app/api/[...path]/route';
+import {photoSuggestionSchema} from './photo-suggestions';
 type Row = Record<string, any>;
 type Encoder = (text: string, images: Uint8Array[]) => Promise<{ textVector: number[]; imageVector: number[] | null }>;
 const db = () => env.DB!;
@@ -87,3 +88,21 @@ export async function processSearchJobs(encode: Encoder, count = 5) {
     return processed;
 }
 export async function workerHeartbeat() { await recordOperation('worker', 'ok'); }
+
+export async function processPhotoSuggestions(analyse:(image:Uint8Array)=>Promise<unknown>,count=5){
+ let processed=0;
+ for(let i=0;i<Math.min(count,20);i++){
+  const lease=crypto.randomUUID(),time=Date.now();
+  const job=await db().prepare("UPDATE photo_suggestions SET state='running',lease=?,attempts=attempts+1,available=? WHERE id=(SELECT id FROM photo_suggestions WHERE state IN ('pending','running','failed') AND attempts<3 AND available<=? AND created>? ORDER BY created LIMIT 1) RETURNING *").bind(lease,time+900000,time,time-86400000).first<Row>();
+  if(!job)break;
+  try{
+   const [image]=await imagesFor([job.image],job.userId);
+   const result=photoSuggestionSchema.parse(await analyse(image));
+   await db().prepare("UPDATE photo_suggestions SET result=?,state='ready',lease=NULL WHERE id=? AND lease=?").bind(JSON.stringify(result),job.id,lease).run();processed++;
+  }catch{
+   await db().prepare("UPDATE photo_suggestions SET state='failed',available=?,lease=NULL WHERE id=? AND lease=?").bind(Date.now()+60000*2**job.attempts,job.id,lease).run();
+  }
+ }
+ await db().prepare('DELETE FROM photo_suggestions WHERE created<?').bind(Date.now()-86400000).run();
+ return processed;
+}

@@ -14,6 +14,17 @@ export type Matchable = {
 // This is a similarity score, never a probability or proof of ownership.
 export const STRONG_MATCH_THRESHOLD = 75;
 export const isStrongMatch = (score: number) => Number.isFinite(score) && score > STRONG_MATCH_THRESHOLD;
+export function matchDifferences(a:Matchable,b:Matchable){
+    const differences:string[]=[];
+    if(a.category!==b.category)differences.push('Different categories');
+    if(a.colour&&b.colour&&a.colour.toLowerCase()!==b.colour.toLowerCase())differences.push('Different listed colours');
+    if(a.brand&&b.brand&&a.brand.toLowerCase()!==b.brand.toLowerCase())differences.push('Different listed brands');
+    const ap=locationPoint(a.location),bp=locationPoint(b.location);
+    if(ap&&bp&&distanceKm(ap,bp)>2)differences.push('Map locations are more than 2 km apart');
+    const lost=a.type==='lost'?a:b,found=a.type==='found'?a:b;
+    if(Date.parse(found.date)<Date.parse(lost.date))differences.push('Found date is before the reported loss date');
+    return differences;
+}
 export function similarityLabel(score: number, factors = 0) {
     if (!Number.isFinite(score) || factors < 2) return 'Insufficient Information';
     return isStrongMatch(score) ? 'High Similarity' : score >= 40 ? 'Medium Similarity' : 'Low Similarity';

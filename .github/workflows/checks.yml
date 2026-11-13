@@ -18,6 +18,8 @@ jobs:
       - run: npm test
       - run: npm run test:http
       - run: npm run test:pwa
+      - run: npm run test:college
+      - run: npm run test:delivery
       - run: npm run test:upgrades
       - run: npm run test:auth
       - run: npm run test:storage
@@ -26,6 +28,8 @@ jobs:
       - run: npm run test:backup-storage
       - run: node tests/service-health.mjs
       - run: npx playwright install --with-deps chromium webkit
+      - run: npm run test:college-browser
+      - run: node tests/college-browser.mjs --webkit
       - run: npm run test:browser
       - run: node tests/browser.mjs --webkit
 

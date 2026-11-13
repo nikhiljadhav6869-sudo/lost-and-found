@@ -1,4 +1,5 @@
 'use client';
+import {t as tr} from '../lib/i18n';
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ArrowRight, Loader2, Lock, X } from 'lucide-react';
@@ -114,22 +115,22 @@ export default function AccountAccess({ mode, onModeChange, onAuthenticated }: P
         <header><h2 id="account-access-title">{titles[mode] || titles.login}</h2><button type="button" className="icon-btn" aria-label="Close account dialog" disabled={busy} onClick={close}><X /></button></header>
         <p className="modal-intro">{descriptions[mode] || descriptions.login}</p>
         {error && <div className="alert error" role="alert">{error}</div>}
-        {configError && <p role="alert">Account settings could not be loaded. <button disabled={busy} onClick={() => { setBusy(true); accountRequest('config').then(data => { setCapabilities(data.auth); setConfigError(false); }).catch(() => setConfigError(true)).finally(() => setBusy(false)); }}>Retry connection</button></p>}
+        {configError && <p role="alert">Account settings could not be loaded. <button disabled={busy} onClick={() => { setBusy(true); accountRequest('config').then(data => { setCapabilities(data.auth); setConfigError(false); }).catch(() => setConfigError(true)).finally(() => setBusy(false)); }}>{tr("Retry connection")}</button></p>}
         {mode === 'verify' && <div className="private-note">Check Spam, Junk and your institution’s quarantine folder. Allow a few minutes and use the newest link; verification links expire after one hour. A request confirmation does not guarantee inbox delivery. You can browse public items while waiting.</div>}
         {message && <div className="alert" role="status">{message}</div>}
         {emailUnavailable ? <p role="status">Email delivery is not available yet. Please contact the app operator for help.</p> : <form onSubmit={submit}>
             {mode === 'register' && <label>Your name<input name="name" autoComplete="name" minLength={2} maxLength={80} required disabled={busy}/></label>}
-            {mode !== 'reset' && <label>Email<input name="email" type="email" autoComplete="email" required value={email} disabled={busy} onChange={event => setEmail(event.target.value)}/></label>}
-            {['login', 'register', 'reset'].includes(mode) && <label>{mode === 'reset' ? 'New password' : 'Password'}<input key={mode} name="password" type="password" minLength={12} maxLength={128} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} required disabled={busy}/><small>At least 12 characters.</small></label>}
+            {mode !== 'reset' && <label>{tr("Email")}<input name="email" type="email" autoComplete="email" required value={email} disabled={busy} onChange={event => setEmail(event.target.value)}/></label>}
+            {['login', 'register', 'reset'].includes(mode) && <label>{mode === 'reset' ? 'New password' : tr("Password")}<input key={mode} name="password" type="password" minLength={12} maxLength={128} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} required disabled={busy}/><small>At least 12 characters.</small></label>}
             {mode === 'reset' && <label>Confirm new password<input name="confirmPassword" type="password" minLength={12} maxLength={128} autoComplete="new-password" required disabled={busy}/></label>}
             <button className="button primary full" disabled={busy || (cooldown > 0 && ['forgot', 'verify'].includes(mode)) || (!capabilities && ['forgot', 'verify'].includes(mode))}>{busy && <Loader2 className="spin" size={18}/>} {cooldown > 0 && ['forgot', 'verify'].includes(mode) ? `Resend in ${cooldown}s` : labels[mode] || labels.login}<ArrowRight size={17}/></button>
         </form>}
         {mode === 'login' && <>
-            <p className="form-switch">New around here? <button disabled={busy} onClick={() => changeMode('register')}>Create an account</button></p>
-            {capabilities?.passwordReset && <p className="form-switch"><button disabled={busy} onClick={() => changeMode('forgot')}>Forgot password?</button></p>}
-            {capabilities?.emailVerification && <p className="form-switch"><button disabled={busy} onClick={() => changeMode('verify')}>Resend verification email</button></p>}
+            <p className="form-switch">New around here? <button disabled={busy} onClick={() => changeMode('register')}>{tr("Create an account")}</button></p>
+            {capabilities?.passwordReset && <p className="form-switch"><button disabled={busy} onClick={() => changeMode('forgot')}>{tr("Forgot password?")}</button></p>}
+            {capabilities?.emailVerification && <p className="form-switch"><button disabled={busy} onClick={() => changeMode('verify')}>{tr("Resend verification email")}</button></p>}
         </>}
-        {mode !== 'login' && <p className="form-switch"><button disabled={busy} onClick={() => changeMode('login')}>Back to sign in</button>{mode === 'verify' && capabilities?.passwordReset && <> · <button disabled={busy} onClick={() => changeMode('forgot')}>Forgot password?</button></>}</p>}
+        {mode !== 'login' && <p className="form-switch"><button disabled={busy} onClick={() => changeMode('login')}>{tr("Back to sign in")}</button>{mode === 'verify' && capabilities?.passwordReset && <> · <button disabled={busy} onClick={() => changeMode('forgot')}>{tr("Forgot password?")}</button></>}</p>}
         <div className="private-note"><Lock size={14}/> Your email is never shown on public reports.</div>
     </dialog>;
 }

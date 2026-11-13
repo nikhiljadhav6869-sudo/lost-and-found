@@ -1,8 +1,11 @@
 'use client';
 import {useEffect,useState} from 'react';
 import {requestJson} from '../lib/request';
+import PushSettings from './PushSettings';
+import {t as tr} from '../lib/i18n';
 export default function NotificationPreferences(){
-    const [enabled,setEnabled]=useState<boolean|null>(null),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
-    useEffect(()=>{let active=true;requestJson('preferences').then(d=>{if(active)setEnabled(d.matches);}).catch(e=>{if(active)setMessage(e.message);});return()=>{active=false;};},[]);
-    return <div className="private-note"><label><input type="checkbox" checked={enabled===true} disabled={busy||enabled===null} onChange={async e=>{const next=e.target.checked;setBusy(true);try{const d=await requestJson('preferences',{matches:next});setEnabled(d.matches);setMessage('Notification preference saved.');}catch(e){setMessage((e as Error).message);}finally{setBusy(false);}}}/> Notify me about new high-similarity matches</label><p>Claim and message updates remain enabled. Turning this on does not resend older match alerts.</p>{message&&<p role="status">{message}</p>}</div>;
+ const [prefs,setPrefs]=useState<Record<string,boolean>|null>(null),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
+ useEffect(()=>{let active=true;requestJson('preferences').then(d=>{if(active)setPrefs(d);}).catch(e=>{if(active)setMessage(e.message);});return()=>{active=false;};},[]);
+ async function change(key:string,value:boolean){if(!prefs)return;setBusy(true);try{const next={...prefs,[key]:value};await requestJson('preferences',next);setPrefs(next);setMessage(tr('Notification preference saved.'));}catch(e){setMessage((e as Error).message);}finally{setBusy(false);}}
+ return <div className="notification-settings">{[['matches','Notify me about new high-similarity matches'],['pushMatches','Background reminders for matches'],['pushClaims','Background reminders for claims and returns']].map(([key,label])=><label key={key}><input type="checkbox" checked={prefs?.[key]===true} disabled={busy||!prefs} onChange={e=>change(key,e.target.checked)}/>{tr(label)}</label>)}<p>Claim and message updates remain in your dashboard. Enabling a preference does not resend old alerts.</p><PushSettings/>{message&&<p role="status">{message}</p>}</div>;
 }

@@ -37,3 +37,12 @@ self.addEventListener('fetch', event => {
     }
   })());
 });
+
+self.addEventListener('push',event=>{
+ let data={};try{data=event.data?.json()||{};}catch{}
+ event.waitUntil(self.registration.showNotification('Lost & Found',{body:'You have a new update. Open the app to view it.',icon:'/icons/icon-192.png',tag:typeof data.tag==='string'?data.tag.slice(0,100):'lost-found-update',data:{url:'/'}}));
+});
+self.addEventListener('notificationclick',event=>{
+ event.notification.close();
+ event.waitUntil((async()=>{const windows=await self.clients.matchAll({type:'window',includeUncontrolled:true});for(const client of windows)if(new URL(client.url).origin===self.location.origin){await client.focus();return;}await self.clients.openWindow('/');})());
+});

@@ -4,6 +4,7 @@ import http from 'node:http';
 import {Readable} from 'node:stream';
 import {clientIp} from './client-ip.mjs';
 import {drainAuthEmails} from '../lib/auth-email.ts';
+import {processPushJobs} from './push.mjs';
 import * as api from '../app/api/[...path]/route.ts';
 import * as auth from '../app/api/auth/[...all]/route.ts';
 const port=Number(process.env.PORT||3000),host=process.env.HOST||'127.0.0.1';
@@ -53,5 +54,8 @@ export const server=http.createServer(async(req,res)=>{
  }catch(error){console.error(JSON.stringify({event:'request_failed',time:new Date().toISOString()}));if(!res.headersSent)res.writeHead(500,{'Content-Type':'application/json'});res.end(JSON.stringify({error:'The server could not complete the request.'}));}
 });
 server.listen(port,host,()=>console.log(`Lost & Found running at ${publicOrigin}`));
+let sendingPush=false;
+const pushTimer=setInterval(async()=>{if(sendingPush)return;sendingPush=true;try{await processPushJobs();}catch{}finally{sendingPush=false;}},15000);
+pushTimer.unref();server.once('close',()=>clearInterval(pushTimer));
 const shutdown=()=>server.close(async()=>{await drainAuthEmails();process.exit(0);});
 process.on('SIGTERM',shutdown);process.on('SIGINT',shutdown);

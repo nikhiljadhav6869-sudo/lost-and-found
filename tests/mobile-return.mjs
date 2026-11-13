@@ -27,7 +27,7 @@ export async function checkMobileReturn(browser, origin) {
     await dialog.getByLabel('Colour', {exact: true}).fill('Indigo');
     await dialog.getByLabel('Brand (optional)').fill('Commuter');
     if (type === 'found') {
-      await dialog.locator('input[type=file]').setInputFiles('public/icons/icon-192.png');
+      await dialog.locator('input[type=file][multiple]').setInputFiles('public/icons/icon-192.png');
       await dialog.getByRole('img', {name: 'Upload 1'}).waitFor();
     }
     await dialog.getByRole('button', {name: 'Publish report'}).click();

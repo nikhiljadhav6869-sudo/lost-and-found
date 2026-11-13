@@ -24,8 +24,8 @@ export async function checkDraftRecovery(browser,origin) {
    await dialog().getByLabel('Brand (optional)').fill('Field');
    await dialog().getByLabel('Date '+type).fill('2026-10-08');
    await dialog().getByLabel('Private distinguishing features').fill('Private orange stitching inside');
-   await dialog().locator('input[type=file]').setInputFiles('public/icons/icon-192.png');
-   await dialog().getByRole('img',{name:'Upload 1',exact:true}).waitFor();
+   await dialog().locator('input[type=file][multiple]').setInputFiles('public/icons/icon-192.png');
+   await dialog().locator('img[alt="Upload 1"][src^="/api/media/"]').waitFor();
    const image=await dialog().getByRole('img',{name:'Upload 1',exact:true}).getAttribute('src');
    // No debounce or save click: navigate away immediately after typing the last field.
    await dialog().getByLabel('Item name').fill(type+' latest camera draft');
@@ -37,7 +37,7 @@ export async function checkDraftRecovery(browser,origin) {
    await dialog().getByText('Add more details (optional)',{exact:true}).click();
    for(const [label,value] of [['Public description','Canvas backpack with green shoulder straps.'],['Colour','Green'],['Brand (optional)','Field'],['Date '+type,'2026-10-08'],['Private distinguishing features','Private orange stitching inside']])assert.equal(await dialog().getByLabel(label).inputValue(),value);
    assert.equal(await dialog().getByRole('img',{name:'Upload 1',exact:true}).getAttribute('src'),image);
-   await dialog().locator('input[type=file]').setInputFiles([]);
+   await dialog().locator('input[type=file][multiple]').setInputFiles([]);
    assert.equal(await dialog().getByLabel('Item name').inputValue(),type+' latest camera draft');
    // A fresh tab represents reopening after the phone discards the original page.
    await page.close();page=await context.newPage();await open();

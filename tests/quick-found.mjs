@@ -37,9 +37,9 @@ export async function checkQuickFound(browser,origin){
   await page.keyboard.press('Escape');
   await page.getByRole('button',{name:'I found something',exact:true}).first().click();
   // Exercise a real 15 MB original through the mobile photo preparation path.
-  await dialog.locator('input[type=file]').setInputFiles({name:'large.jpg',mimeType:'image/jpeg',buffer:photoOfSize(MAX_PHOTO_BYTES)});
+  await dialog.locator('input[type=file][multiple]').setInputFiles({name:'large.jpg',mimeType:'image/jpeg',buffer:photoOfSize(MAX_PHOTO_BYTES)});
   await dialog.getByRole('img',{name:'Upload 1',exact:true}).waitFor();
-  await dialog.locator('input[type=file]').setInputFiles({name:'too-large.jpg',mimeType:'image/jpeg',buffer:photoOfSize(MAX_PHOTO_BYTES+1)});
+  await dialog.locator('input[type=file][multiple]').setInputFiles({name:'too-large.jpg',mimeType:'image/jpeg',buffer:photoOfSize(MAX_PHOTO_BYTES+1)});
   await dialog.getByRole('alert').filter({hasText:'Each original image must be 15 MB or smaller.'}).waitFor();
   assert.equal(await dialog.getByRole('img',{name:/Upload \d/}).count(),1);
   await dialog.getByRole('button',{name:'Save & close',exact:true}).click();

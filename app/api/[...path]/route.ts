@@ -1,7 +1,7 @@
 import { MAX_UPLOAD_BODY_BYTES } from '../../../lib/photo-limits.mjs';
 import { env } from 'cloudflare:workers';
 import { auth, authCapabilities } from '../../../lib/auth';
-import { match, categories, isStrongMatch, type Matchable } from '../../../lib/matching';
+import { match, matchDifferences, categories, isStrongMatch, type Matchable } from '../../../lib/matching';
 import { multimodal, rankingWeights, MODEL_VERSION, cosine, vector } from '../../../lib/intelligence';
 import { featureRoute, intelligenceAvailable } from '../../../lib/features';
 import { recordOperation } from '../../../lib/operations';
@@ -10,6 +10,7 @@ import { z } from 'zod';
 import { ensureDemo } from '../../../lib/demo';
 import { boundedBody } from '../../../lib/body';
 import { maintain } from '../../../lib/maintenance';
+import {workspaceRoute,requireWorkspace,canStaff,digest} from '../../../lib/workspaces';
 export const dynamic = 'force-dynamic';
 type Row = Record<string, any>;
 const db = () => env.DB!;
@@ -26,17 +27,17 @@ async function limit(key: string, max = 30) { const k = key + ':' + Math.floor(n
 async function current(req: Request) { const s = await auth(new URL(req.url).origin).api.getSession({ headers: req.headers }); return s?.user ?? null; }
 const publicReport = (r: Row): Row => { const { privateDetails, textVector, imageVector, model, revision, matchRevision, ...safe } = r; return { ...safe, images: JSON.parse(r.images) }; };
 async function blocked(a: string, b: string) { return !!await one('SELECT 1 FROM blocks WHERE (userId=? AND blocked=?) OR (userId=? AND blocked=?)', a, b, b, a); }
-const reportSchema = z.object({ type: z.enum(['lost', 'found']), title: z.string().trim().min(3).max(100), category: z.string().refine(x => categories.includes(x)), description: z.string().trim().max(2000), colour: z.string().trim().max(50), brand: z.string().trim().max(60), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(x => Number.isFinite(Date.parse(x)) && new Date(x).toISOString().slice(0, 10) === x && x <= new Date().toISOString().slice(0, 10)), location: z.string().trim().min(2).max(100), privateDetails: z.string().trim().max(2000), images: z.array(z.string().max(150)).max(5) }).refine(data => data.type === 'found' || data.description.length >= 10, { path: ['description'], message: 'Describe your lost item in at least 10 characters.' });
+const reportSchema = z.object({ workspaceId:z.string().uuid().nullable().optional(), submissionId:z.string().uuid().optional(), type: z.enum(['lost', 'found']), title: z.string().trim().min(3).max(100), category: z.string().refine(x => categories.includes(x)), description: z.string().trim().max(2000), colour: z.string().trim().max(50), brand: z.string().trim().max(60), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(x => Number.isFinite(Date.parse(x)) && new Date(x).toISOString().slice(0, 10) === x && x <= new Date().toISOString().slice(0, 10)), location: z.string().trim().min(2).max(100), privateDetails: z.string().trim().max(2000), images: z.array(z.string().max(150)).max(5) }).refine(data => data.type === 'found' || data.description.length >= 10, { path: ['description'], message: 'Describe your lost item in at least 10 characters.' });
 async function matchingReports(r: Row) {
     if (r.hidden || !['Open', 'Claim Pending'].includes(r.status)) return [];
     const sourceEmbedding = await one('SELECT * FROM embeddings WHERE reportId=? AND revision=?', r.id, r.matchRevision);
     const candidates = await all(`SELECT candidate.*, e.textVector,e.imageVector,e.model,e.revision FROM reports candidate LEFT JOIN embeddings e ON e.reportId=candidate.id AND e.revision=candidate.matchRevision
-        WHERE candidate.type!=? AND candidate.owner!=? AND candidate.hidden=0 AND candidate.demo=? AND candidate.status IN ('Open','Claim Pending')
+        WHERE candidate.workspaceId IS ? AND candidate.type!=? AND candidate.owner!=? AND candidate.hidden=0 AND candidate.demo=? AND candidate.status IN ('Open','Claim Pending')
         AND NOT EXISTS(SELECT 1 FROM blocks WHERE (userId=? AND blocked=candidate.owner) OR (userId=candidate.owner AND blocked=?))
-        ORDER BY candidate.created DESC LIMIT 1000`, r.type, r.owner, r.demo, r.owner, r.owner);
+        ORDER BY candidate.created DESC LIMIT 1000`, r.workspaceId||null, r.type, r.owner, r.demo, r.owner, r.owner);
     return candidates.map(b => {
         const result = multimodal(r as Matchable, b as Matchable, sourceEmbedding as any, b.model ? b as any : null, rankingWeights((env as unknown as Row).MATCH_WEIGHTS));
-        return { report: publicReport(b), revision: b.matchRevision, ...result, strongMatch: isStrongMatch(result.score) };
+        return { report: publicReport(b), revision: b.matchRevision, ...result, differences:matchDifferences(r as Matchable,b as Matchable), strongMatch: isStrongMatch(result.score) };
     }).filter(m => m.score >= 40).sort((a, b) => b.score - a.score);
 }
 async function suggestions(r: Row) { return (await matchingReports(r)).slice(0, 8); }
@@ -45,11 +46,11 @@ async function suggestions(r: Row) { return (await matchingReports(r)).slice(0, 
 // both reports are edited at once. Each batch inserts both recipients or none.
 export async function notifyStrongMatches(r: Row) {
     if (r.demo || r.hidden || !['Open', 'Claim Pending'].includes(r.status)) return;
-    const snapshots = ['type', 'owner', 'category', 'title', 'description', 'colour', 'brand', 'date', 'location', 'matchRevision'];
+    const snapshots = ['type', 'owner', 'category', 'title', 'description', 'colour', 'brand', 'date', 'location', 'matchRevision','workspaceId'];
     for (const m of (await matchingReports(r)).filter(m => m.strongMatch)) {
         const other = m.report, eventId = id(), created = now();
         const [reportA, reportB] = [r.id, other.id].sort();
-        const snapshotGuard = snapshots.map(field => `a.${field}=? AND b.${field}=?`).join(' AND ');
+        const snapshotGuard = snapshots.map(field => `a.${field} IS ? AND b.${field} IS ?`).join(' AND ');
         const snapshotValues = snapshots.flatMap(field => [r[field], field === 'matchRevision' ? m.revision : other[field]]);
         const reserve = db().prepare(`INSERT INTO match_alerts(id,reportA,reportB,score,created)
             SELECT ?,?,?,?,? WHERE EXISTS(SELECT 1 FROM reports a JOIN reports b ON b.id=?
@@ -76,6 +77,8 @@ async function handle(req: Request) {
     if (path[0] === 'health' && method === 'GET') { await one('SELECT 1'); return { ok: true }; }
     if (path[0] === 'config' && method === 'GET')
         return { auth: authCapabilities(), intelligence: await intelligenceAvailable(db()) };
+    const viewer=await current(req);
+    const platform=!!viewer&&((env as unknown as Row).ADMIN_USER_IDS||'').split(',').map((s:string)=>s.trim()).includes(viewer.id);
     if (path[0] === 'media' && method === 'GET') {
         const key = path[1];
         if (!/^[a-f0-9-]+\.(jpg|png|webp)$/.test(key))
@@ -83,8 +86,8 @@ async function handle(req: Request) {
         const meta = await one('SELECT owner FROM uploads WHERE id=?', key);
         if (!meta)
             fail('Image not found.', 404);
-        const published = await one('SELECT id FROM reports WHERE hidden=0 AND images LIKE ?', `%/api/media/${key}%`);
-        if (!published && (await current(req))?.id !== meta.owner)
+        const published = await one('SELECT id FROM reports WHERE hidden=0 AND (workspaceId IS NULL OR ? OR EXISTS(SELECT 1 FROM workspace_members m WHERE m.workspaceId=reports.workspaceId AND m.userId=?)) AND images LIKE ?',platform?1:0,viewer?.id||'', `%/api/media/${key}%`);
+        if (!published && viewer?.id !== meta.owner)
             fail('Image not found.', 404);
         const object = await env.BUCKET!.get(key);
         if (!object)
@@ -98,10 +101,12 @@ async function handle(req: Request) {
             const r = await one('SELECT * FROM reports WHERE id=? AND hidden=0', path[1]);
             if (!r)
                 fail('This report is unavailable.', 404);
+            await requireWorkspace(db(),r!.workspaceId,viewer?.id,platform);
             return { report: publicReport(r!), matches: await suggestions(r!) };
         }
-        const clauses = ['hidden=0', 'demo=?'];
-        const values: any[] = [url.searchParams.get('demo') === '1' ? 1 : 0];
+        const wid=url.searchParams.get('workspace')||null;await requireWorkspace(db(),wid,viewer?.id,platform);
+        const clauses = ['hidden=0', 'demo=?','workspaceId IS ?'];
+        const values: any[] = [url.searchParams.get('demo') === '1' ? 1 : 0,wid];
         for (const field of ['type', 'category', 'colour'])
             if (url.searchParams.get(field)) {
                 clauses.push(`${field}=? COLLATE NOCASE`);
@@ -134,17 +139,18 @@ async function handle(req: Request) {
     }
     if (path[0] === 'stats' && method === 'GET') {
         const [counts,happy] = await Promise.all([
-            one("SELECT coalesce(sum(demo=0 AND status IN ('Open','Claim Pending')),0) AS open,coalesce(sum(demo=0 AND status='Returned'),0) AS returned,coalesce(sum(demo=1),0) AS demo FROM reports WHERE hidden=0"),
-            all("SELECT r.category,r.date FROM claims c JOIN reports r ON r.id=c.reportId WHERE c.status='Returned' AND c.finderConsent=1 AND c.claimantConsent=1 AND r.hidden=0 AND r.demo=0 ORDER BY c.created DESC LIMIT 12")
+            one("SELECT coalesce(sum(demo=0 AND status IN ('Open','Claim Pending')),0) AS open,coalesce(sum(demo=0 AND status='Returned'),0) AS returned,coalesce(sum(demo=1),0) AS demo FROM reports WHERE hidden=0 AND workspaceId IS NULL"),
+            all("SELECT r.category,r.date FROM claims c JOIN reports r ON r.id=c.reportId WHERE c.status='Returned' AND c.finderConsent=1 AND c.claimantConsent=1 AND r.hidden=0 AND r.demo=0 AND r.workspaceId IS NULL ORDER BY c.created DESC LIMIT 12")
         ]);
         return {...counts,happy};
     }
-    const u = await current(req);
+    const u = viewer;
     if (path[0] === 'me' && method === 'GET')
         return { user: u ? { id: u.id, name: u.name, email: u.email, emailVerified: u.emailVerified, admin: ((env as unknown as Row).ADMIN_USER_IDS || '').split(',').map((s: string) => s.trim()).includes(u.id) } : null };
     if (!u)
         fail('Please sign in to continue.', 401);
     const user = u!;
+    if(req.headers.has('X-Expected-User')&&req.headers.get('X-Expected-User')!==user.id)fail('Sign in to the account that saved this report.',401);
     const admin = ((env as unknown as Row).ADMIN_USER_IDS || '').split(',').map((s: string) => s.trim()).includes(user.id);
     if (method !== 'GET')
         await limit(user.id + ':' + path[0], path[0] === 'reports' ? 10 : path[0] === 'smart-search' ? 5 : 30);
@@ -167,8 +173,14 @@ async function handle(req: Request) {
         await run('INSERT INTO uploads(id,owner,created) VALUES(?,?,?)', key, user.id, now());
         return { url: '/api/media/' + key };
     }
-    if (path[0] === 'dashboard' && method === 'GET')
-        return { reports: (await all('SELECT * FROM reports WHERE owner=? ORDER BY created DESC', user.id)).map(r => ({ ...publicReport(r), privateDetails: r.privateDetails })), saved: (await all('SELECT r.* FROM saved s JOIN reports r ON r.id=s.reportId WHERE s.userId=? AND r.hidden=0', user.id)).map(publicReport), claims: await all('SELECT c.*,r.title,r.owner,r.images,r.status AS reportStatus FROM claims c JOIN reports r ON r.id=c.reportId WHERE c.claimant=? OR r.owner=? ORDER BY c.created DESC', user.id, user.id), notifications: await all('SELECT * FROM notifications WHERE userId=? ORDER BY created DESC LIMIT 100', user.id), blocks: await all('SELECT b.blocked,u.name FROM blocks b LEFT JOIN user u ON u.id=b.blocked WHERE b.userId=?', user.id) };
+    if (path[0] === 'dashboard' && method === 'GET'){
+        const visible=(alias:string)=>`(${alias}.workspaceId IS NULL OR ${admin?1:0} OR EXISTS(SELECT 1 FROM workspace_members m WHERE m.workspaceId=${alias}.workspaceId AND m.userId=?))`;
+        return {reports:(await all('SELECT r.* FROM reports r WHERE owner=? AND '+visible('r')+' ORDER BY created DESC',user.id,user.id)).map(r=>({...publicReport(r),privateDetails:r.privateDetails})),
+        saved:(await all('SELECT r.* FROM saved s JOIN reports r ON r.id=s.reportId WHERE s.userId=? AND r.hidden=0 AND '+visible('r'),user.id,user.id)).map(publicReport),
+        claims:await all('SELECT c.*,r.title,r.owner,r.images,r.status AS reportStatus FROM claims c JOIN reports r ON r.id=c.reportId WHERE (c.claimant=? OR r.owner=?) AND '+visible('r')+' ORDER BY c.created DESC',user.id,user.id,user.id),
+        notifications:await all(`SELECT n.* FROM notifications n WHERE n.userId=? AND NOT EXISTS(SELECT 1 FROM reports r WHERE r.workspaceId IS NOT NULL AND (n.link='/?report='||r.id OR n.link IN (SELECT '/?claim='||c.id FROM claims c WHERE c.reportId=r.id)) AND NOT ${visible('r')}) ORDER BY n.created DESC LIMIT 100`,user.id,user.id),
+        blocks:await all('SELECT b.blocked,u.name FROM blocks b LEFT JOIN user u ON u.id=b.blocked WHERE b.userId=?',user.id)};
+    }
     let b: Row = {};
     if (method !== 'GET' && method !== 'DELETE')
         try {
@@ -182,7 +194,8 @@ async function handle(req: Request) {
                 throw e;
             fail('Please send valid form data.');
         }
-    const feature = await featureRoute(db(), path, method, b, user, url, publicReport);
+    const workspace=await workspaceRoute(db(),path,method,b,user,admin);if(workspace!==null)return workspace;
+    const feature = await featureRoute(db(), path, method, b, user, url, publicReport, admin);
     if (feature !== null) return feature;
     if (path[0] === 'notifications' && method === 'POST') {
         await run('UPDATE notifications SET read=1 WHERE userId=?', user.id);
@@ -202,10 +215,12 @@ async function handle(req: Request) {
         const existing = path[1] ? await one('SELECT * FROM reports WHERE id=?', path[1]) : null;
         if (path[1] && (!existing || existing.owner !== user.id))
             fail('You cannot change this report.', 403);
+        if(existing)await requireWorkspace(db(),existing.workspaceId,user.id,admin);
+        if(existing&&await one('SELECT 1 FROM custody WHERE reportId=?',existing.id))fail('College staff manage this item after receiving it.',409);
         if (method === 'DELETE') {
             if (['Return Arranged', 'Returned'].includes(existing!.status))
                 fail('Reports with arranged or completed returns cannot be deleted.');
-            const result = await run('DELETE FROM reports WHERE id=? AND owner=? AND status IN (\'Open\',\'Claim Pending\',\'Closed\')', path[1], user.id);
+            const result = await run('DELETE FROM reports WHERE id=? AND owner=? AND status IN (\'Open\',\'Claim Pending\',\'Closed\') AND NOT EXISTS(SELECT 1 FROM custody WHERE reportId=reports.id)', path[1], user.id);
             if (!result.meta.changes)
                 fail('This report changed before it could be deleted. Refresh and try again.', 409);
             return { ok: true };
@@ -215,7 +230,7 @@ async function handle(req: Request) {
         if (b.action === 'close') {
             if (!existing || !['Open', 'Claim Pending'].includes(existing.status))
                 fail('This report cannot be closed in its current state.');
-            const result = await db().batch([db().prepare('UPDATE reports SET status=\'Closed\' WHERE id=? AND owner=? AND hidden=0 AND status IN (\'Open\',\'Claim Pending\')').bind(existing.id, user.id), db().prepare('UPDATE claims SET status=\'Rejected\' WHERE reportId=? AND status=\'Pending\' AND EXISTS(SELECT 1 FROM reports WHERE id=? AND status=\'Closed\')').bind(existing.id, existing.id)]);
+            const result = await db().batch([db().prepare('UPDATE reports SET status=\'Closed\' WHERE id=? AND owner=? AND hidden=0 AND status IN (\'Open\',\'Claim Pending\') AND NOT EXISTS(SELECT 1 FROM custody WHERE reportId=reports.id)').bind(existing.id, user.id), db().prepare('UPDATE claims SET status=\'Rejected\' WHERE reportId=? AND status=\'Pending\' AND EXISTS(SELECT 1 FROM reports WHERE id=? AND status=\'Closed\')').bind(existing.id, existing.id)]);
             if (!result[0].meta.changes)
                 fail('This report changed before it could be closed. Refresh and try again.', 409);
             return { ok: true };
@@ -223,6 +238,11 @@ async function handle(req: Request) {
         if (existing && !['Open', 'Claim Pending'].includes(existing.status))
             fail('Only open reports can be edited.');
         const data = reportSchema.parse(b);
+        const requestHash=data.submissionId?await digest(JSON.stringify(data)):'';
+        if(!existing&&data.submissionId){const receipt=await one('SELECT reportId,requestHash FROM report_submissions WHERE userId=? AND submissionId=?',user.id,data.submissionId);if(receipt){if(receipt.requestHash!==requestHash)fail('This submission was already used for different details.',409);return {id:receipt.reportId};}}
+
+        await requireWorkspace(db(),data.workspaceId,user.id,admin);
+        if(existing&&(existing.workspaceId||null)!==(data.workspaceId||null))fail('A published report cannot move between workspaces.');
         if (existing && data.type !== existing.type)
             fail('Report type cannot change after publication.');
         const publicText = [data.title, data.description, data.location].join(' ');
@@ -234,17 +254,27 @@ async function handle(req: Request) {
                 fail('Use your own uploaded images.');
         }
         const reportId = existing?.id || id();
-        const fields = ['type', 'title', 'category', 'description', 'colour', 'brand', 'date', 'location', 'privateDetails', 'images'];
-        const vals = fields.map(k => k === 'images' ? JSON.stringify(data.images) : (data as Row)[k]);
+        const fields = ['workspaceId','type', 'title', 'category', 'description', 'colour', 'brand', 'date', 'location', 'privateDetails', 'images'];
+        const vals = fields.map(k => k === 'images' ? JSON.stringify(data.images) : (data as Row)[k]??null);
         const imageGuard = data.images.map(() => 'EXISTS(SELECT 1 FROM uploads u WHERE u.id=? AND u.owner=? AND NOT EXISTS(SELECT 1 FROM upload_cleanup q WHERE q.id=u.id))').join(' AND ') || '1';
         const imageParams = data.images.flatMap(image => [image.slice('/api/media/'.length), user.id]);
         if (existing) {
-            const result = await run(`UPDATE reports SET ${fields.map(k => k + '=?').join(',')} WHERE id=? AND owner=? AND hidden=0 AND status IN ('Open','Claim Pending') AND ${imageGuard}`, ...vals, reportId, user.id, ...imageParams);
+            const result = await run(`UPDATE reports SET ${fields.map(k => k + '=?').join(',')} WHERE id=? AND owner=? AND hidden=0 AND status IN ('Open','Claim Pending') AND NOT EXISTS(SELECT 1 FROM custody WHERE reportId=reports.id) AND ${imageGuard}`, ...vals, reportId, user.id, ...imageParams);
             if (!result.meta.changes)
                 fail('This report changed before it could be edited. Refresh and try again.', 409);
         }
         else {
-            const result = await run(`INSERT INTO reports(id,owner,${fields.join(',')},created) SELECT ${Array(13).fill('?').join(',')} WHERE ${imageGuard}`, reportId, user.id, ...vals, now(), ...imageParams);
+            if(data.submissionId){
+                await db().batch([
+                  db().prepare(`INSERT OR IGNORE INTO report_submissions(userId,submissionId,reportId,requestHash,created) SELECT ?,?,?,?,? WHERE ${imageGuard}`).bind(user.id,data.submissionId,reportId,requestHash,now(),...imageParams),
+                  db().prepare(`INSERT INTO reports(id,owner,${fields.join(',')},created) SELECT ${Array(14).fill('?').join(',')} WHERE EXISTS(SELECT 1 FROM report_submissions WHERE userId=? AND submissionId=? AND reportId=?)`).bind(reportId,user.id,...vals,now(),user.id,data.submissionId,reportId)
+                ]);
+                const receipt=await one('SELECT reportId,requestHash FROM report_submissions WHERE userId=? AND submissionId=?',user.id,data.submissionId);
+                if(!receipt)fail('A photo expired before publication. Upload it again and retry.',409);
+                if(receipt.requestHash!==requestHash)fail('This submission was already used for different details.',409);
+                await notifyStrongMatches((await one('SELECT * FROM reports WHERE id=?',receipt.reportId))!);return {id:receipt.reportId};
+            }
+            const result = await run(`INSERT INTO reports(id,owner,${fields.join(',')},created) SELECT ${Array(14).fill('?').join(',')} WHERE ${imageGuard}`, reportId, user.id, ...vals, now(), ...imageParams);
             if (!result.meta.changes) fail('A photo expired before publication. Upload it again and retry.', 409);
         }
         const r = await one('SELECT * FROM reports WHERE id=?', reportId);
@@ -255,6 +285,7 @@ async function handle(req: Request) {
         const rid = z.string().parse(b.reportId);
         if (!await one('SELECT id FROM reports WHERE id=? AND hidden=0', rid))
             fail('Report unavailable.', 404);
+        const target=await one('SELECT workspaceId FROM reports WHERE id=?',rid);await requireWorkspace(db(),target?.workspaceId,user.id,admin);
         if (b.saved)
             await run('INSERT OR IGNORE INTO saved(userId,reportId) VALUES(?,?)', user.id, rid);
         else
@@ -265,6 +296,7 @@ async function handle(req: Request) {
         const reason = z.string().trim().min(10).max(1000).parse(b.reason);
         if (!await one('SELECT id FROM reports WHERE id=?', b.reportId))
             fail('Report unavailable.', 404);
+        const flagged=await one('SELECT workspaceId FROM reports WHERE id=?',b.reportId);await requireWorkspace(db(),flagged?.workspaceId,user.id,admin);
         await run('INSERT INTO flags(id,userId,reportId,reason,created) VALUES(?,?,?,?,?)', id(), user.id, b.reportId, reason, now());
         return { ok: true };
     }
@@ -292,6 +324,7 @@ async function handle(req: Request) {
             const evidence = z.string().trim().min(15).max(2000).parse(b.evidence), r = await one('SELECT * FROM reports WHERE id=? AND hidden=0', b.reportId);
             if (!r || r.type !== 'found' || !['Open', 'Claim Pending'].includes(r.status))
                 fail('This item is not accepting claims.');
+            await requireWorkspace(db(),r!.workspaceId,user.id,admin);
             if (r!.demo)
                 fail('Demo reports illustrate discovery. Create a real found report to test claims.');
             if (r!.owner === user.id)
@@ -302,15 +335,21 @@ async function handle(req: Request) {
                 fail('You already have an active claim for this item.');
             const cid = id();
             await db().batch([db().prepare('INSERT INTO claims(id,reportId,claimant,evidence,created) SELECT ?,?,?,?,? WHERE EXISTS(SELECT 1 FROM reports WHERE id=? AND status IN (\'Open\',\'Claim Pending\'))').bind(cid, r!.id, user.id, evidence, now(), r!.id), db().prepare('UPDATE reports SET status=\'Claim Pending\' WHERE id=? AND status=\'Open\'').bind(r!.id), notify(r!.owner, 'A new ownership claim needs your review.', '/?claim=' + cid)]);
+            if(!await one('SELECT 1 FROM claims WHERE id=?',cid))fail('This report changed before your claim was submitted.',409);
+            await run("INSERT INTO notifications(id,userId,body,link,created) SELECT lower(hex(randomblob(16))),m.userId,'A new ownership claim needs your review.',?,? FROM workspace_members m JOIN custody k ON k.reportId=? WHERE m.workspaceId=? AND m.role IN ('staff','admin') AND m.userId!=? AND m.userId!=?",'/?claim='+cid,now(),r!.id,r!.workspaceId||null,r!.owner,user.id);
             return { id: cid };
         }
-        const c = await one('SELECT c.*,r.owner,r.title,r.hidden,r.status AS reportStatus FROM claims c JOIN reports r ON r.id=c.reportId WHERE c.id=?', path[1]);
-        if (!c || (c.claimant !== user.id && c.owner !== user.id))
+        const c = await one('SELECT c.*,r.owner,r.title,r.hidden,r.workspaceId,r.status AS reportStatus,k.receivedBy AS custodyReceived FROM claims c JOIN reports r ON r.id=c.reportId LEFT JOIN custody k ON k.reportId=r.id WHERE c.id=?', path[1]);
+        const staff=!!c?.custodyReceived&&c.claimant!==user.id&&(admin||await canStaff(db(),c.workspaceId,user.id));
+        if (!c || (c.claimant !== user.id && c.owner !== user.id&&!staff))
             fail('Conversation unavailable.', 403);
+        await requireWorkspace(db(),c!.workspaceId,user.id,admin);
         if (method === 'GET')
-            return { claim: c, messages: await all('SELECT id,sender,body,created FROM messages WHERE claimId=? ORDER BY created,id', c!.id), blocked: await blocked(user.id, user.id === c!.owner ? c!.claimant : c!.owner) };
+            return { claim: {...c,staff,managed:!!c!.custodyReceived,...(staff?{verificationNotes:(await one('SELECT privateDetails FROM reports WHERE id=?',c!.reportId))?.privateDetails}:{} )}, messages: await all('SELECT id,sender,body,created FROM messages WHERE claimId=? ORDER BY created,id', c!.id), blocked: await blocked(user.id, user.id === c!.owner ? c!.claimant : c!.owner) };
         // Either participant can leave an arrangement, including after a block
         // or moderation action. A completed return can never be reopened here.
+        if(staff&&c!.owner!==user.id&&c!.claimant!==user.id&&(!!path[2]||!['approve','reject'].includes(b.action))&&method!=='GET')fail('Staff can review claims; participants manage their private conversation.',403);
+        if(c!.custodyReceived&&['confirm'].includes(b.action))fail('Use the staff collection-code process for this item.',409);
         if (method === 'POST' && b.action === 'cancel' && !path[2]) {
             if (c!.status !== 'Approved')
                 fail('Only an arranged return can be cancelled.', 409);
@@ -339,7 +378,12 @@ async function handle(req: Request) {
             fail('Unblock this participant before continuing.', 403);
         if (c!.hidden)
             fail('This listing is under moderation.', 403);
-        const other = user.id === c!.owner ? c!.claimant : c!.owner;
+        const other = staff||user.id === c!.owner ? c!.claimant : c!.owner;
+        // Recheck authority inside the write transaction. Custody or a staff role
+        // can change after this request reads the claim.
+        const currentMember=`(r.workspaceId IS NULL OR ${Number(admin)}=1 OR EXISTS(SELECT 1 FROM workspace_members m WHERE m.workspaceId=r.workspaceId AND m.userId=?))`;
+        const unblocked="NOT EXISTS(SELECT 1 FROM blocks WHERE (userId=r.owner AND blocked=claims.claimant) OR (userId=claims.claimant AND blocked=r.owner))";
+        const reviewerGuard=`EXISTS(SELECT 1 FROM reports r WHERE r.id=claims.reportId AND r.hidden=0 AND r.status IN ('Open','Claim Pending') AND ${currentMember} AND ${unblocked} AND ((NOT EXISTS(SELECT 1 FROM custody WHERE reportId=r.id) AND r.owner=?) OR (EXISTS(SELECT 1 FROM custody WHERE reportId=r.id) AND (${Number(admin)}=1 OR EXISTS(SELECT 1 FROM workspace_members m WHERE m.workspaceId=r.workspaceId AND m.userId=? AND m.role IN ('staff','admin'))))))`;
         if (path[2] === 'messages' && method === 'POST') {
             if (!['Pending', 'Approved'].includes(c!.status))
                 fail('This conversation is closed.');
@@ -349,22 +393,25 @@ async function handle(req: Request) {
         }
         if (method === 'POST') {
             if (b.action === 'approve') {
-                if (user.id !== c!.owner || c!.status !== 'Pending')
+                if(c!.claimant===user.id)fail('Another staff member must review your own claim.',403);
+                if ((c!.custodyReceived?!staff:user.id!==c!.owner) || c!.status !== 'Pending')
                     fail('Only the finder can approve a pending claim.', 403);
-                await db().batch([db().prepare('UPDATE claims SET status=\'Approved\' WHERE id=? AND status=\'Pending\' AND EXISTS(SELECT 1 FROM reports WHERE id=? AND status IN (\'Open\',\'Claim Pending\'))').bind(c!.id, c!.reportId), db().prepare('UPDATE reports SET status=\'Return Arranged\' WHERE id=? AND EXISTS(SELECT 1 FROM claims WHERE id=? AND status=\'Approved\')').bind(c!.reportId, c!.id)]);
-                if ((await one('SELECT status FROM claims WHERE id=?', c!.id))!.status !== 'Approved')
-                    fail('Another claim has already been approved.', 409);
+                const result=await db().batch([db().prepare(`UPDATE claims SET status='Approved' WHERE id=? AND claimant!=? AND status='Pending' AND ${reviewerGuard}`).bind(c!.id,user.id,user.id,user.id,user.id), db().prepare('UPDATE reports SET status=\'Return Arranged\' WHERE id=? AND EXISTS(SELECT 1 FROM claims WHERE id=? AND status=\'Approved\')').bind(c!.reportId, c!.id)]);
+                if (!result[0].meta.changes)fail('This claim or your review access changed. Refresh and try again.',409);
             }
             else if (b.action === 'reject' || b.action === 'withdraw') {
-                if ((b.action === 'reject' && user.id !== c!.owner) || (b.action === 'withdraw' && user.id !== c!.claimant) || c!.status !== 'Pending')
+                if ((b.action === 'reject' && (c!.custodyReceived?!staff:user.id !== c!.owner)) || (b.action === 'withdraw' && user.id !== c!.claimant) || c!.status !== 'Pending')
                     fail('This action is unavailable.', 403);
-                await db().batch([db().prepare('UPDATE claims SET status=? WHERE id=? AND status=\'Pending\'').bind(b.action === 'reject' ? 'Rejected' : 'Withdrawn', c!.id), db().prepare('UPDATE reports SET status=\'Open\' WHERE id=? AND status=\'Claim Pending\' AND NOT EXISTS(SELECT 1 FROM claims WHERE reportId=? AND status=\'Pending\')').bind(c!.reportId, c!.reportId)]);
+                const guard=b.action==='reject'?reviewerGuard:`claimant=? AND EXISTS(SELECT 1 FROM reports r WHERE r.id=claims.reportId AND ${currentMember})`;
+                const args=b.action==='reject'?[user.id,user.id,user.id]:[user.id,user.id];
+                const result=await db().batch([db().prepare(`UPDATE claims SET status=? WHERE id=? AND status='Pending' AND ${guard}`).bind(b.action==='reject'?'Rejected':'Withdrawn',c!.id,...args), db().prepare('UPDATE reports SET status=\'Open\' WHERE id=? AND status=\'Claim Pending\' AND NOT EXISTS(SELECT 1 FROM claims WHERE reportId=? AND status=\'Pending\')').bind(c!.reportId, c!.reportId)]);
+                if(!result[0].meta.changes)fail('This claim or your review access changed. Refresh and try again.',409);
             }
             else if (b.action === 'confirm') {
                 if (c!.status !== 'Approved')
                     fail('Only an arranged return can be confirmed.');
                 const field = user.id === c!.owner ? 'finderConfirmed' : 'claimantConfirmed';
-                const result = await db().batch([db().prepare(`UPDATE claims SET ${field}=1 WHERE id=? AND status='Approved'`).bind(c!.id), db().prepare('UPDATE claims SET status=\'Returned\' WHERE id=? AND status=\'Approved\' AND finderConfirmed=1 AND claimantConfirmed=1').bind(c!.id), db().prepare('UPDATE reports SET status=\'Returned\' WHERE id=? AND EXISTS(SELECT 1 FROM claims WHERE id=? AND status=\'Returned\')').bind(c!.reportId, c!.id), db().prepare('UPDATE claims SET status=\'Rejected\' WHERE reportId=? AND status=\'Pending\' AND EXISTS(SELECT 1 FROM reports WHERE id=? AND status=\'Returned\')').bind(c!.reportId, c!.reportId)]);
+                const result = await db().batch([db().prepare(`UPDATE claims SET ${field}=1 WHERE id=? AND status='Approved' AND ${field}=0 AND NOT EXISTS(SELECT 1 FROM custody WHERE reportId=claims.reportId) AND EXISTS(SELECT 1 FROM reports r WHERE r.id=claims.reportId AND r.hidden=0 AND r.status='Return Arranged' AND ${currentMember} AND ${unblocked})`).bind(c!.id,user.id), db().prepare('UPDATE claims SET status=\'Returned\' WHERE id=? AND status=\'Approved\' AND finderConfirmed=1 AND claimantConfirmed=1').bind(c!.id), db().prepare('UPDATE reports SET status=\'Returned\' WHERE id=? AND EXISTS(SELECT 1 FROM claims WHERE id=? AND status=\'Returned\')').bind(c!.reportId, c!.id), db().prepare('UPDATE claims SET status=\'Rejected\' WHERE reportId=? AND status=\'Pending\' AND EXISTS(SELECT 1 FROM reports WHERE id=? AND status=\'Returned\')').bind(c!.reportId, c!.reportId)]);
                 if (!result[0].meta.changes)
                     fail('This arrangement changed before it could be confirmed. Refresh and try again.', 409);
             }
@@ -376,7 +423,8 @@ async function handle(req: Request) {
             }
             else
                 fail('Unknown claim action.');
-            await db().batch([notify(other, `Claim update: ${b.action === 'confirm' ? 'a handover confirmation was received' : b.action}.`, '/?claim=' + c!.id)]);
+            const notice=c!.custodyReceived&&b.action==='approve'?'Your claim is approved. Request a collection code when you reach the college desk.':`Claim update: ${b.action === 'confirm' ? 'a handover confirmation was received' : b.action}.`;
+            await db().batch([notify(other,notice,'/?claim='+c!.id),...(c!.custodyReceived&&['approve','reject'].includes(b.action)?[db().prepare('INSERT INTO handover_events(id,workspaceId,reportId,actor,recipient,event,detail,created) VALUES(?,?,?,?,?,?,?,?)').bind(id(),c!.workspaceId,c!.reportId,user.id,c!.claimant,'claim-'+b.action,'',now())]:[])]);
             return { ok: true };
         }
     }

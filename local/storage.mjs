@@ -74,4 +74,5 @@ export const env = {
   get BREVO_API_KEY() { return process.env.BREVO_API_KEY; },
   get EMAIL_FROM() { return process.env.EMAIL_FROM; },
   get EMAIL_FROM_NAME() { return process.env.EMAIL_FROM_NAME; },
+  get VAPID_PUBLIC_KEY() { return process.env.VAPID_PRIVATE_KEY&&process.env.VAPID_SUBJECT?process.env.VAPID_PUBLIC_KEY:undefined; },
 };

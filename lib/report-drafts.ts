@@ -5,11 +5,13 @@ const WEEK = 7 * 86400000;
 const limits: Record<string, number> = {title:100,category:60,description:2000,colour:50,brand:60,date:10,location:100,privateDetails:2000};
 
 export function reportDraftKey(userId: string, data: DraftData) {
-    return PREFIX + userId + ':' + (data.id || data.type);
+    return PREFIX + userId + ':' + (data.id || (data.workspaceId?data.workspaceId+':':'')+data.type);
 }
 function fields(value: DraftData): DraftData {
     if (!value || !['lost','found'].includes(value.type)) throw Error('Invalid draft');
     const data: DraftData = {type:value.type};
+    if(value.submissionId&&typeof value.submissionId==='string'&&/^[a-f0-9-]{36}$/.test(value.submissionId))data.submissionId=value.submissionId;
+    if(value.workspaceId){if(typeof value.workspaceId!=='string'||!/^[a-f0-9-]{36}$/.test(value.workspaceId))throw Error('Invalid workspace');data.workspaceId=value.workspaceId;}
     if (value.id) {
         if (typeof value.id !== 'string' || !/^[a-zA-Z0-9_-]{1,100}$/.test(value.id)) throw Error('Invalid report');
         data.id=value.id;
@@ -18,7 +20,7 @@ function fields(value: DraftData): DraftData {
         if (typeof value[key] !== 'string' || value[key].length > max) throw Error('Invalid draft field');
         data[key]=value[key];
     }
-    if (!Array.isArray(value.images) || value.images.length > 5 || value.images.some((url: unknown) => typeof url !== 'string' || !/^\/api\/media\/[a-f0-9-]+\.(jpg|png|webp)$/.test(url))) throw Error('Invalid photos');
+    if (!Array.isArray(value.images) || value.images.length > 5 || value.images.some((url: unknown) => typeof url !== 'string' || !/^\/api\/media\/[a-f0-9-]+\.(jpg|png|webp)$/.test(url)&&!/^local-photo:[a-f0-9-]{36}$/.test(url))) throw Error('Invalid photos');
     data.images=[...value.images];
     return data;
 }

@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { checkedStorageKey } from './supabase-bucket.mjs';
-const tables = ['user','session','account','verification','reports','claims','messages','saved','notifications','blocks','flags','limits','uploads','match_alerts','upload_cleanup','embedding_jobs','embeddings','preferences','match_feedback','operations','search_jobs','local_migrations'];
+const tables = ['user','session','account','verification','workspaces','workspace_members','collection_desks','reports','claims','messages','saved','notifications','blocks','flags','limits','uploads','match_alerts','upload_cleanup','embedding_jobs','embeddings','preferences','match_feedback','operations','search_jobs','photo_suggestions','custody','collection_codes','handover_events','report_submissions','push_subscriptions','push_deliveries','local_migrations'];
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 const migrations = () => fs.readdirSync('drizzle').filter(name => name.endsWith('.sql')).sort().map(name => ({name,sql:fs.readFileSync(path.join('drizzle',name),'utf8')}));
 function key(password, salt) { if (typeof password !== 'string' || password.length < 20) throw new Error('Set BACKUP_PASSWORD to at least 20 characters; keep it separate from backups.'); return scryptSync(password,salt,32); }

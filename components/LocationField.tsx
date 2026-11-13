@@ -1,4 +1,5 @@
 'use client';
+import {t as tr} from '../lib/i18n';
 import {useEffect,useId,useRef,useState} from 'react';
 import {MapPin,Loader2,ArrowUpRight} from 'lucide-react';
 import {approximateLocation,googleMapsUrl} from '../lib/location';
@@ -31,11 +32,11 @@ export default function LocationField({value,type,disabled,onChange,onPendingCha
         } catch {failure('Location is unavailable right now. You can type a nearby place instead.');}
     }
     return <div className="report-location">
-        <label htmlFor={id}>{type==='found'?'Approximate location (where you found it)':'Approximate location (where you lost it)'}</label>
+        <label htmlFor={id}>{type==='found'?tr("Approximate location (where you found it)"):tr("Approximate location (where you lost it)")}</label>
         <input id={id} aria-describedby={id+'-help'} required minLength={2} maxLength={100} placeholder="Nearby landmark, area or current location" value={value} disabled={disabled} onChange={e=>manual(e.target.value)}/>
         <div className="location-actions">
-            <button type="button" className="button secondary" disabled={disabled||locating} onClick={locate}>{locating?<Loader2 size={16} className="spin"/>:<MapPin size={16}/>} {locating?'Finding location…':'Use current location'}</button>
-            {value.trim().length>=2 && <a href={googleMapsUrl(value)} target="_blank" rel="noopener noreferrer" className="text-button">Check on Google Maps <ArrowUpRight size={14}/></a>}
+            <button type="button" className="button secondary" disabled={disabled||locating} onClick={locate}>{locating?<Loader2 size={16} className="spin"/>:<MapPin size={16}/>} {locating?tr("Finding location…"):tr("Use current location")}</button>
+            {value.trim().length>=2 && <a href={googleMapsUrl(value)} target="_blank" rel="noopener noreferrer" className="text-button">{tr("Check on Google Maps")}<ArrowUpRight size={14}/></a>}
         </div>
         <small id={id+'-help'}>{type==='found'?'Use your current location only if you are near where you found the item.':'Use your current location only if you are near where you lost the item.'} This area will be public; avoid home addresses.</small>
         {message && <p className="location-message" role={failed?'alert':'status'}>{message}</p>}

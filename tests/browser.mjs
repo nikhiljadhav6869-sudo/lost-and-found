@@ -14,8 +14,8 @@ const server=spawn(process.execPath,['tests/browser-server.mjs'],{stdio:['ignore
 let output='';server.stdout.on('data',b=>{output+=b;});server.stderr.on('data',b=>{output+=b;});
 let browser;
 try{
- let ready=false;for(let i=0;i<100;i++){if(output.includes('Lost & Found running')){ready=true;break;}if(server.exitCode!==null)throw new Error(output);await new Promise(r=>setTimeout(r,100));}
- assert.ok(ready,'Isolated browser server did not start');
+ let ready=false;for(let i=0;i<300;i++){if(output.includes('Lost & Found running')){ready=true;break;}if(server.exitCode!==null)throw new Error(output);await new Promise(r=>setTimeout(r,100));}
+ assert.ok(ready,'Isolated browser server did not start: '+output);
  const edge='C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
  const engine=process.argv.includes('--webkit')?webkit:chromium;
  browser=await engine.launch({headless:true,...(engine===chromium?(process.env.PLAYWRIGHT_EXECUTABLE?{executablePath:process.env.PLAYWRIGHT_EXECUTABLE}:process.platform==='win32'&&fs.existsSync(edge)?{executablePath:edge}:{}):{})});
@@ -66,6 +66,7 @@ try{
  const response=await context.request.post(origin+'/api/auth/sign-up/email',{headers:{origin},data:{name:'Browser Tester',email:'browser@ui.test',password}});
  assert.equal(response.status(),200);
  await page.goto(origin);
+ await page.locator('.avatar').waitFor();
  await page.getByRole('button',{name:'I lost something',exact:true}).first().click();
  const form=page.getByRole('dialog');
  await checkAccessibility(page,'report-form');

@@ -1,0 +1,46 @@
+name: Cloud AI processing
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '2-57/5 * * * *'
+permissions:
+  contents: read
+concurrency:
+  group: production-ai-processing
+  cancel-in-progress: false
+jobs:
+  process:
+    if: github.event_name == 'workflow_dispatch' || vars.CLOUD_AI_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            ai-worker/package-lock.json
+      - run: npm ci --include=dev
+      - run: npm ci --prefix ai-worker
+      - uses: actions/cache@v4
+        with:
+          path: ai-worker/.cache
+          key: models-minilm-751bff3-clip-d15189d-photo-v1
+      - name: Process a bounded batch of private jobs
+        run: node scripts/ai-worker.mjs
+        env:
+          STORAGE_MODE: remote
+          SEED_DEMO: 'false'
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          SUPABASE_STORAGE_BUCKET: ${{ secrets.SUPABASE_STORAGE_BUCKET }}
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
+# Schedules may be delayed. Enable after a successful deployed manual run.

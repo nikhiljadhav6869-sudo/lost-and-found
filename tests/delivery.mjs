@@ -1,0 +1,36 @@
+import assert from 'node:assert/strict';
+import {build} from 'esbuild';
+import path from 'node:path';
+import {randomBytes,randomUUID} from 'node:crypto';
+import {isolate} from './environment.mjs';
+isolate('delivery');
+await build({entryPoints:['tests/entry.ts'],outfile:'.sites-runtime/delivery-entry.mjs',bundle:true,platform:'node',format:'esm',packages:'external',alias:{'cloudflare:workers':path.resolve('local/storage.mjs')}});
+const {api,auth,env}=await import('../.sites-runtime/delivery-entry.mjs');
+let cookie='',uid;
+async function call(route,body,status=200,expectedUser){const method=body?'POST':'GET';const r=await(route.startsWith('auth/')?auth:api)[method](new Request('http://localhost/api/'+route,{method,headers:{origin:'http://localhost',cookie,'content-type':'application/json',...(expectedUser?{'X-Expected-User':expectedUser}:{})},body:body?JSON.stringify(body):undefined}));const data=await r.json();assert.equal(r.status,status,route+': '+JSON.stringify(data));for(const value of r.headers.getSetCookie())if(value.startsWith('better-auth.session_token='))cookie=value.split(';')[0];return data;}
+await call('auth/sign-up/email',{name:'Delivery tester',email:'delivery@test.example',password:randomBytes(24).toString('hex')});uid=(await call('me')).user.id;
+const input={submissionId:randomUUID(),type:'found',title:'Yellow canvas bag',category:'Bags',description:'',colour:'Yellow',brand:'',location:'College library',date:new Date().toISOString().slice(0,10),privateDetails:'Private clue',images:[]};
+const [a,b]=await Promise.all([call('reports',input),call('reports',input)]);assert.equal(a.id,b.id);
+assert.equal((await env.DB.prepare('SELECT count(*) AS n FROM reports').first()).n,1);
+assert.equal((await call('reports',input)).id,a.id);
+await call('reports',{...input,title:'Different object'},409);
+await call('reports',{...input,submissionId:randomUUID()},401,'another-account');
+await env.DB.prepare('DELETE FROM reports WHERE id=?').bind(a.id).run();assert.equal((await call('reports',input)).id,a.id);assert.equal((await env.DB.prepare('SELECT count(*) AS n FROM reports').first()).n,0);
+console.log('PASS concurrent and repeated submission receipts, changed-body rejection, account-switch protection, and no recreation after deletion');
+await call('push',{subscription:{}},503);
+Object.assign(process.env,{VAPID_PUBLIC_KEY:'test-public-key',VAPID_PRIVATE_KEY:'test-private-key',VAPID_SUBJECT:'mailto:delivery@test.example'});
+const subscription={endpoint:'https://fcm.googleapis.com/fcm/send/test-device',keys:{p256dh:'A'.repeat(87),auth:'B'.repeat(22)}};
+await call('push',{subscription:{...subscription,endpoint:'http://127.0.0.1/private'}},400);
+await call('push',{subscription});await call('push',{subscription});assert.equal((await call('push')).subscriptions,1);
+const {processPushJobs}=await import('../local/push.mjs');
+const notify=async body=>{const id=randomUUID();await env.DB.prepare('INSERT INTO notifications(id,userId,body,link,created) VALUES(?,?,?,?,?)').bind(id,uid,body,'/?claim=private-claim',Date.now()).run();return id;};
+await notify('Strong match: a private title');let calls=0;
+await processPushJobs(10,async(sub,payload)=>{calls++;assert.equal(sub.endpoint,subscription.endpoint);assert.ok(!payload.includes('private'));});assert.equal(calls,1);
+await processPushJobs(10,async()=>calls++);assert.equal(calls,1);
+await call('preferences',{matches:true,pushMatches:false,pushClaims:true});const disabled=await notify('Strong match: another title');assert.equal(await env.DB.prepare('SELECT 1 FROM push_deliveries WHERE notificationId=?').bind(disabled).first(),null);
+const retry=await notify('Your claim is approved.');await processPushJobs(1,async()=>{throw {statusCode:503};});let job=await env.DB.prepare('SELECT * FROM push_deliveries WHERE notificationId=?').bind(retry).first();assert.equal(job.state,'failed');assert.equal(job.attempts,1);
+await env.DB.prepare('UPDATE push_deliveries SET available=0 WHERE notificationId=?').bind(retry).run();await processPushJobs(1,async()=>{calls++;});assert.equal(calls,2);
+const read=await notify('Already read notice');await env.DB.prepare('UPDATE notifications SET read=1 WHERE id=?').bind(read).run();await processPushJobs(1,async()=>{throw Error('Must not send read notifications');});assert.equal((await env.DB.prepare('SELECT state FROM push_deliveries WHERE notificationId=?').bind(read).first()).state,'skipped');
+await notify('Expired endpoint');await processPushJobs(1,async()=>{throw {statusCode:410};});assert.equal((await call('push')).subscriptions,0);
+console.log('PASS optional push setup, endpoint validation, generic private payload, deduplication, preferences, transient retry, read suppression and expired subscription cleanup (transport stub only)');
+

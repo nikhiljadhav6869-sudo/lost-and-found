@@ -1,0 +1,90 @@
+import assert from 'node:assert/strict';
+import {build} from 'esbuild';
+import {randomBytes} from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import {isolate} from './environment.mjs';
+isolate('college');
+await build({entryPoints:['tests/entry.ts'],outfile:'.sites-runtime/college-entry.mjs',bundle:true,platform:'node',format:'esm',packages:'external',alias:{'cloudflare:workers':path.resolve('local/storage.mjs')}});
+const {api,auth,env,processPhotoSuggestions}=await import('../.sites-runtime/college-entry.mjs');
+let counter=0;
+class Client{
+ cookie='';address='198.51.100.'+(++counter);
+ async call(route,body,method=body?'POST':'GET',expected=200){
+  const response=await (route.startsWith('auth/')?auth:api)[method](new Request('http://localhost/api/'+route,{method,headers:{origin:'http://localhost',cookie:this.cookie,'cf-connecting-ip':this.address,...(!(body instanceof FormData)?{'content-type':'application/json'}:{})},body:body?body instanceof FormData?body:JSON.stringify(body):undefined}));
+  const type=response.headers.get('content-type');const data=type?.includes('application/json')?await response.json():await response.arrayBuffer();assert.equal(response.status,expected,route+': '+JSON.stringify(data));
+  for(const value of response.headers.getSetCookie())if(value.startsWith('better-auth.session_token='))this.cookie=value.split(';')[0];return data;
+ }
+}
+const platform=new Client(),staff=new Client(),finder=new Client(),owner=new Client(),outsider=new Client(),guest=new Client();
+for(const [client,name] of [[platform,'Platform'],[staff,'Staff'],[finder,'Finder'],[owner,'Owner'],[outsider,'Outsider']]){client.email=name+'@college.test';await client.call('auth/sign-up/email',{name,email:client.email,password:randomBytes(24).toString('base64url')});client.id=(await client.call('me')).user.id;await env.DB.prepare('UPDATE user SET emailVerified=1 WHERE id=?').bind(client.id).run();}
+process.env.ADMIN_USER_IDS=platform.id;
+const wid=(await platform.call('workspaces',{name:'College Alpha',administrator:platform.email})).id;
+const other=(await platform.call('workspaces',{name:'College Beta',administrator:outsider.email})).id;
+await platform.call('workspaces/'+wid+'/members',{email:staff.email,role:'staff'});
+const invitation=(await platform.call('workspaces/'+wid+'/invite',{})).code;
+await finder.call('workspaces/join',{code:invitation});await owner.call('workspaces/join',{code:invitation});
+await finder.call('workspaces/'+wid+'/members',{email:finder.email,role:'admin'},'POST',403);
+await staff.call('workspaces/'+wid+'/invite',{},'POST',403);
+await outsider.call('workspaces/'+wid,undefined,'GET',404);
+console.log('PASS platform-created colleges, invitation membership, staff/admin separation and cross-college denial');
+const desk=(await staff.call('workspaces/'+wid+'/desks',{name:'Library desk',location:'Library entrance'})).id;
+const upload=new FormData();upload.append('file',new Blob([fs.readFileSync('tests/fixtures/sample.png')],{type:'image/png'}),'sample.png');
+const image=(await finder.call('upload',upload)).url;
+const photo=await finder.call('photo-suggestions',{image});assert.equal((await finder.call('photo-suggestions',{image})).id,photo.id);
+await owner.call('photo-suggestions/'+photo.id,undefined,'GET',404);await owner.call('photo-suggestions',{image},'POST',403);
+await processPhotoSuggestions(async()=>({title:'green backpack',category:'Bags',colour:'green',features:[],description:'Possibly a green backpack.'}));
+assert.equal((await finder.call('photo-suggestions/'+photo.id)).suggestions.category,'Bags');
+console.log('PASS private photo jobs, deduplication and validated results (inference stub confined to this test)');
+const input={workspaceId:wid,type:'found',title:'Green canvas backpack',category:'Bags',description:'Green canvas backpack with brown straps',colour:'Green',brand:'Field',date:new Date().toISOString().slice(0,10),location:'Library entrance',privateDetails:'PRIVATE hidden mark',images:[image]};
+const found=(await finder.call('reports',input)).id,lost=(await owner.call('reports',{...input,type:'lost',images:[]})).id;
+await outsider.call('reports',{...input,images:[]},'POST',404);
+assert.equal((await guest.call('reports')).total,0);assert.equal((await guest.call('stats')).open,0);
+await guest.call('reports/'+found,undefined,'GET',404);await outsider.call('reports?workspace='+wid,undefined,'GET',404);await outsider.call('reports/'+found,undefined,'GET',404);
+await outsider.call(image.slice(5),undefined,'GET',404);await guest.call(image.slice(5),undefined,'GET',404);
+assert.equal((await owner.call('reports?workspace='+wid)).total,2);assert.equal((await owner.call('reports/'+lost)).matches[0].report.id,found);
+assert.ok(!JSON.stringify(await owner.call('reports/'+found)).includes('PRIVATE hidden mark'));
+await outsider.call('save',{reportId:found,saved:true},'POST',404);await outsider.call('flags',{reportId:found,reason:'A report in another college'},'POST',404);
+console.log('PASS report, image, search, statistics and match isolation; private fields remain private');
+await finder.call('workspaces/'+wid+'/receive',{reportId:found,deskId:desk,storage:'Shelf A'},'POST',403);
+await staff.call('workspaces/'+wid+'/receive',{reportId:found,deskId:desk,storage:'Shelf A'});
+await finder.call('reports/'+found,input,'PATCH',409);
+const claim=(await owner.call('claims',{reportId:found,evidence:'A small blue mark is inside the left pocket.'})).id;
+await outsider.call('claims/'+claim,undefined,'GET',403);
+assert.equal((await staff.call('claims/'+claim)).claim.staff,true);
+await finder.call('claims/'+claim,{action:'approve'},'POST',403);
+await staff.call('claims/'+claim,{action:'approve'});
+await owner.call('claims/'+claim,{action:'confirm'},'POST',409);
+await staff.call('collection/'+claim,{action:'issue'},'POST',403);
+let issued=await owner.call('collection/'+claim,{action:'issue'});
+const record=await env.DB.prepare('SELECT * FROM collection_codes WHERE claimId=?').bind(claim).first();assert.ok(!JSON.stringify(record).includes(issued.code));
+await owner.call('collection/'+claim,{action:'collect',code:issued.code},'POST',403);
+const wrong=issued.code==='00000000'?'11111111':'00000000';for(let i=0;i<5;i++)await staff.call('collection/'+claim,{action:'collect',code:wrong},'POST',400);
+await staff.call('collection/'+claim,{action:'collect',code:issued.code},'POST',400);
+issued=await owner.call('collection/'+claim,{action:'issue'});await env.DB.prepare('UPDATE collection_codes SET expires=0 WHERE claimId=?').bind(claim).run();await staff.call('collection/'+claim,{action:'collect',code:issued.code},'POST',400);
+issued=await owner.call('collection/'+claim,{action:'issue'});
+await staff.call('collection/'+claim,{action:'collect',code:issued.code});await staff.call('collection/'+claim,{action:'collect',code:issued.code},'POST',409);
+assert.equal((await owner.call('claims/'+claim)).claim.status,'Returned');
+const events=(await env.DB.prepare("SELECT * FROM handover_events WHERE reportId=? AND event='collected'").bind(found).all()).results;assert.equal(events.length,1);assert.equal(events[0].actor,staff.id);assert.equal(events[0].recipient,owner.id);
+console.log('PASS managed custody, staff-only approval, private expiring hashed codes, five-attempt lockout, single-use collection and handover audit');
+// Pause a real request after its read to reproduce competing state changes.
+async function afterRead(prefix,claimId,task,competing){
+ const original=env.DB.prepare;let release,reached,intercepted=false;
+ const resumed=new Promise(r=>release=r),snapshot=new Promise(r=>reached=r);
+ env.DB.prepare=function(query){const prepared=original.call(this,query);if(!query.startsWith(prefix))return prepared;const bind=prepared.bind;prepared.bind=function(...args){const bound=bind.apply(this,args);if(args[0]!==claimId||intercepted)return bound;intercepted=true;const first=bound.first;bound.first=async function(...rest){const row=await first.apply(this,rest);reached();await resumed;return row;};return bound;};return prepared;};
+ const pending=task();try{await Promise.race([snapshot,pending.then(()=>{throw Error('Read not intercepted');})]);await competing();}finally{env.DB.prepare=original;release();}await pending;
+}
+await env.DB.prepare('DELETE FROM limits').run();
+const raced=(await finder.call('reports',{...input,title:'Custody race backpack',images:[]})).id;
+const racingClaim=(await owner.call('claims',{reportId:raced,evidence:'Private green seam underneath the lining.'})).id;
+await afterRead('SELECT c.*,r.owner',racingClaim,()=>finder.call('claims/'+racingClaim,{action:'approve'},'POST',409),()=>staff.call('workspaces/'+wid+'/receive',{reportId:raced,deskId:desk,storage:'Shelf B'}));
+await staff.call('claims/'+racingClaim+'/messages',{action:'approve',body:'Forged staff conversation'},'POST',403);
+await afterRead('SELECT c.*,r.owner',racingClaim,()=>staff.call('claims/'+racingClaim,{action:'approve'},'POST',409),()=>staff.call('claims/'+racingClaim,{action:'approve'}));
+assert.equal((await env.DB.prepare("SELECT count(*) AS n FROM handover_events WHERE reportId=? AND event='claim-approve'").bind(raced).first()).n,1);
+const collection=await owner.call('collection/'+racingClaim,{action:'issue'});
+await afterRead('SELECT c.*,r.workspaceId',racingClaim,()=>owner.call('collection/'+racingClaim,{action:'issue'},'POST',409),()=>staff.call('collection/'+racingClaim,{action:'collect',code:collection.code}));
+assert.ok((await env.DB.prepare('SELECT consumedAt,receipt FROM collection_codes WHERE claimId=?').bind(racingClaim).first()).receipt);
+console.log('PASS custody/approval and code/collection races, single approval audit, and forged staff-message denial');
+await env.DB.prepare('DELETE FROM workspace_members WHERE workspaceId=? AND userId=?').bind(wid,owner.id).run();
+await owner.call('reports/'+lost,undefined,'GET',404);assert.equal((await owner.call('dashboard')).reports.length,0);
+console.log('PASS removed membership revokes report and dashboard access');
