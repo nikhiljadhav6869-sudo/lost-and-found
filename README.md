@@ -4,11 +4,11 @@ A full-stack community lost-and-found application, with a responsive teal/navy/c
 
 **[Open the public app](https://lost-and-found-yzfl.onrender.com/)**. Create an account and verify your email to report an item or contact its finder. On a phone, use the app's **Install app** instructions to add it to your home screen. An internet connection is required.
 
-**[Install on Android or iPhone](https://lost-and-found-yzfl.onrender.com/?install=1)** — this link opens the installation steps immediately. Supported browsers also show an install button when their native prompt is available. Your phone requires confirmation; this is a web app, not an APK or App Store download.
+**[Download and installation guide](https://lost-and-found-yzfl.onrender.com/downloads/install.html)** — [download the signed Android APK](https://lost-and-found-yzfl.onrender.com/download/android), or [open the iPhone/web app installation steps](https://lost-and-found-yzfl.onrender.com/?install=1). iPhone uses Safari's **Share → Add to Home Screen**, not an App Store download. Your phone requires installation confirmation.
 
 Scan this QR code to open the installation link:
 
-![QR code for the public Lost & Found app](public/app-qr.png)
+![QR code for the public Lost & Found installation guide](public/downloads/install-qr.png)
 
 ## Quick reporting and appearance
 
@@ -22,7 +22,7 @@ Both lost and found forms offer **Use current location**. Location is requested 
 
 ## Production optimization update
 
-The upgrade adds clearer authentication recovery, qualitative match labels, separate demo browsing, optional real image/text inference, semantic/photo search, automatic device-local drafts, notification preferences, operational visibility and encrypted backup scheduling tools. See the [eight-problem improvement report](docs/IMPROVEMENT-REPORT.md), [test evidence](docs/TEST-REPORT.md) and [upgrade deployment guide](docs/DEPLOYMENT-UPGRADE.md). AI inference is active through a Windows worker while its computer is awake and signed in. Daily private backups are enabled for 07:00 India time; see [verified operations status](docs/OPERATIONS-STATUS.md). The [signed Android APK](https://lost-and-found-yzfl.onrender.com/download/android) is available for testing on Android 7.0 and newer. Installation and launch passed on an emulator. Physical-phone validation remains outstanding.
+The upgrade adds clearer authentication recovery, qualitative match labels, separate demo browsing, optional real image/text inference, semantic/photo search, automatic device-local drafts, notification preferences, operational visibility and encrypted backup scheduling tools. See the [eight-problem improvement report](docs/IMPROVEMENT-REPORT.md), [test evidence](docs/TEST-REPORT.md) and [upgrade deployment guide](docs/DEPLOYMENT-UPGRADE.md). AI processing now runs through a separate scheduled cloud workflow; the former Windows worker is disabled. See the [college upgrade and release evidence](docs/COLLEGE-UPGRADE.md) for photo suggestions, college workspaces, secure collection, offline submissions and optional push. Daily private backups are enabled for 07:00 India time; see [verified operations status](docs/OPERATIONS-STATUS.md). The [signed Android APK](https://lost-and-found-yzfl.onrender.com/download/android) is available for testing on Android 7.0 and newer. Installation and launch passed on an emulator. Physical-phone validation remains outstanding.
 
 ## Production setup update
 

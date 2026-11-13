@@ -1,6 +1,6 @@
 # College platform upgrade
 
-Status recorded on **12 November 2026**. Implementation is on `codex/college-platform-upgrade`; this upgrade is **not deployed or release-approved**. Changes are still being reviewed and tested. Existing live functionality is separate from the local upgrade described here.
+Status recorded on **13 November 2026**. Release `b920680` is deployed on Render from GitHub `main`. All 18 local verification groups passed, and the exact release passed GitHub verification, model and Windows-worker checks. The database has applied migrations `0000`–`0009`. Production backup/restore and cloud activation evidence are below. Physical-device and institutional pilot acceptance remain separate from automated verification.
 
 ## Architecture and preservation plan
 
@@ -114,16 +114,17 @@ Only the VAPID public key belongs in browser subscription setup. Keep all privat
 
 Pinned CLIP/MiniLM models run through Transformers.js without a hosted per-inference API key. Model download/cold inference takes time and needs more memory than the web app's smallest free instance can comfortably provide. The separate workflow has a ten-minute job limit and a nominal five-minute schedule. Scheduling delays, runner limits and backlog can increase waiting time. No sub-30-second AI result or continuous availability is guaranteed.
 
-## Deployment sequence — pending
+## Deployment and operational evidence — 13 November 2026
 
-1. Finish the permission/race review and fix the failing new browser checks. Run full verification on the final code, review the diff/migrations/secrets, make meaningful commits, and verify CI on that exact revision.
-2. While the current production revision is still deployed, manually run **Private backups and maintenance** normally, not its failure drill. Verify success and restore-check evidence. Preserve the encrypted archive and matching application revision. Do not use the new backup code on an old schema before this backup.
-3. Keep the legacy PC worker stopped during the transition. On 12 November, scheduled task `LostFound-AI-Worker-515272C83715` was stopped and disabled to prevent outdated processing of college data. Credentials were retained. **Cloud processing is not activated yet, so background AI processing is currently paused.** If cloud activation cannot proceed, validate/update the local worker before re-enabling it; do not restart obsolete code against the new schema.
-4. Sign back into the existing Render service when needed. Retain its database, photo, mail and authentication settings. Build the tested revision with `npm ci --include=dev` and `npm run build:local`; keep the existing start command and public `APP_ORIGIN`. Push the approved revision to `main` for the existing automatic deployment. Confirm the intended commit and successful startup/migration logs.
-5. Check public discovery, existing accounts and photos before creating test college data. Verify that old reports stay public and private data stays protected. Record actual migration evidence; this document does not claim deployment complete.
-6. Verify cloud repository secrets without exposing values. Manually run **Cloud AI processing** from deployed `main`; check model/job execution and heartbeat with permitted test data. Only then set `CLOUD_AI_ENABLED=true` and verify an actual scheduled run. Keep the PC task disabled once cloud replacement is proven.
-7. For optional push, generate a VAPID pair once, protect the private key, configure matching public key/contact subject, and verify on a supported device. Test receipt, disabling/re-enabling and preferences. Until configuration exists, retain the truthful unconfigured message and in-app fallback.
-8. Run a post-upgrade backup/restore check including college/collection records. Finish the acceptance checklist, record the deployed commit and limitations, then update this document's status.
+- **Release:** Render confirmed `b920680` Live. [Exact-revision CI](https://github.com/nikhiljadhav6869-sudo/lost-and-found/actions/runs/43361481921) passed all three jobs. Local verification passed all 18 groups, including Chromium and WebKit mobile workflows, college isolation, custody/collection races, offline retry and push delivery controls.
+- **Recovery:** Before rollout, the remote schema already included migrations 0006/0007, which explained the old backup code's restore mismatch. A matching-schema encrypted archive was created, read back from private storage and restored successfully: 29 tables and two photos. Recovery code and archive remain protected outside Git.
+- **Post-upgrade backup:** The [scheduled run](https://github.com/nikhiljadhav6869-sudo/lost-and-found/actions/runs/43391266889) and [manual confirmation](https://github.com/nikhiljadhav6869-sudo/lost-and-found/actions/runs/43398674783) both restored **32 tables and two photos**. `OPERATIONS_ENABLED=true` remains enabled, targeting 07:00 India time with 14-day retention and the newest two archives retained. GitHub may delay schedules.
+- **Cloud processing:** The [initial production run](https://github.com/nikhiljadhav6869-sudo/lost-and-found/actions/runs/43398671052) passed with an empty queue. `CLOUD_AI_ENABLED=true` is now enabled. A second manual run verified real photo suggestions and image/text inference. The workflow is active and scheduling is enabled; the first scheduler-triggered AI run has not yet been observed. See [operations status](OPERATIONS-STATUS.md). The legacy Windows task stays disabled; the cloud workflow does not need this computer to remain on.
+- **Preservation:** All pre-upgrade identities for three accounts, 13 reports, two claims, four messages and two uploads remain present. Both stored photo bytes match the pre-upgrade backup hashes. Public discovery loaded successfully after deployment.
+- **Push:** Matching VAPID settings were stored in Render and GitHub encrypted secrets. Delivery queue/transport/security checks passed automatically. Real opted-in phone delivery is still an acceptance check; configuration alone does not prove receipt.
+- **Distribution:** The live [installation page](https://lost-and-found-yzfl.onrender.com/downloads/install.html) includes Android, iPhone and QR instructions. The live QR decoded to `https://lost-and-found-yzfl.onrender.com/?install=1`. The direct Android response returned an attachment without a redirect and matched the release SHA-256; size 1,218,326 bytes. iPhone installation remains a Safari Home Screen web app.
+
+For subsequent releases, create a matching-schema backup before migrations, deploy the tested revision, verify live health and permissions, then run cloud processing and a post-upgrade restore check. Do not restart the obsolete PC worker against the new schema.
 
 ## Known limitations and acceptance checklist
 
@@ -133,18 +134,18 @@ Pinned CLIP/MiniLM models run through Transformers.js without a hosted per-infer
 - The offline queue works after the app loads and while it is open and signed in. It does not promise a fully usable fresh offline launch or closed-app uploads. Signing out removes local submissions/photos. Browsers may evict storage; storage limits/retention need physical-device checks.
 - Major controls and many messages support Hindi/Marathi, while some explanatory/dynamic/operator text can fall back to English. User reports/evidence are not translated automatically. Native-speaker review remains necessary. Voice support varies by browser and may send audio to its speech provider.
 - Colleges need a verified administrator and a staff process. Invitations alone do not prove student affiliation. QR posters do not bypass membership. Membership removal and institutional account-lifecycle procedures must be agreed.
-- Push remains unconfigured for this upgrade. Permission prompts, OS restrictions and actual delivery need device testing before claiming operation.
+- Push is configured, but permission prompts, OS restrictions and actual delivery still need physical-device testing before claiming receipt.
 - Automated checks do not establish physical phone camera/microphone/location/installation behavior, real mail receipt, app-store approval, government compliance or independent security/accessibility certification.
 
 Before a real college pilot:
 
-- [ ] Final local and CI checks pass on the intended release revision.
-- [ ] College isolation covers reports/photos/search/claims and revoked members.
-- [ ] Custody and return history identify staff/recipient; expired/guessed/replayed codes fail; staff cannot approve or collect their own claim.
-- [ ] Private evidence stays protected; staff verification and audits work through the UI.
+- [x] Final local and CI checks pass on the intended release revision. (Automated verification.)
+- [x] College isolation covers reports/photos/search/claims and revoked members. (Automated verification.)
+- [x] Custody and return history identify staff/recipient; expired/guessed/replayed codes fail; staff cannot approve or collect their own claim. (Automated verification.)
+- [x] Private evidence stays protected; staff verification and audits work through the UI. (Automated verification.)
 - [ ] Camera/gallery, 15 MB originals, permission denial, drafts, interrupted uploads, lost acknowledgements and sign-out cleanup work on target phones.
 - [ ] Hindi/Marathi controls fit narrow screens and are understandable; voice failure leaves typing usable.
-- [ ] Cloud AI works with the personal computer off; delays are honestly displayed and manual reporting works.
+- [x] Cloud AI processed real models on a GitHub runner with the PC worker disabled. Manual reporting remains available. First scheduler-triggered AI execution remains to be observed.
 - [ ] Real mail and opted-in push reach test users; preferences and disabled-device behavior work.
-- [ ] Production data survives migration; a post-upgrade encrypted backup restores with matching code.
+- [x] Production data survives migration; a post-upgrade encrypted backup restores with matching code. (Automated verification.)
 - [ ] Operators agree privacy/consent/retention, staff access, abuse handling, incidents and recovery procedures.
