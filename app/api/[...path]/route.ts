@@ -25,7 +25,11 @@ function fail(message: string, status = 400): never { throw Object.assign(new Er
 const notify = (u: string, body: string, link: string) => db().prepare('INSERT INTO notifications(id,userId,body,link,created) VALUES(?,?,?,?,?)').bind(id(), u, body, link, now());
 async function limit(key: string, max = 30) { const k = key + ':' + Math.floor(now() / 60000); const r = await one('INSERT INTO limits(key,count) VALUES(?,1) ON CONFLICT(key) DO UPDATE SET count=count+1 RETURNING count', k); if (r!.count > max)
     fail('Please slow down and try again in a minute.', 429); }
-async function current(req: Request) { const s = await auth(new URL(req.url).origin).api.getSession({ headers: req.headers }); return s?.user ?? null; }
+async function current(req: Request, sessionHeaders: Headers) {
+    const result = await auth(new URL(req.url).origin).api.getSession({ headers: req.headers, returnHeaders: true });
+    for (const cookie of result.headers.getSetCookie()) sessionHeaders.append('Set-Cookie', cookie);
+    return result.response?.user ?? null;
+}
 const publicReport = (r: Row): Row => { const { privateDetails, textVector, imageVector, model, revision, matchRevision, ...safe } = r; return { ...safe, images: JSON.parse(r.images),productData:r.productData?JSON.parse(r.productData):null }; };
 async function blocked(a: string, b: string) { return !!await one('SELECT 1 FROM blocks WHERE (userId=? AND blocked=?) OR (userId=? AND blocked=?)', a, b, b, a); }
 const reportSchema = z.object({ productData:productDetails.nullable().optional(),referenceImage:z.coerce.boolean().default(false),lostTime:z.string().regex(/^$|^([01][0-9]|2[0-3]):[0-5][0-9]$/).default(''), workspaceId:z.string().uuid().nullable().optional(), submissionId:z.string().uuid().optional(), type: z.enum(['lost', 'found']), title: z.string().trim().min(3).max(100), category: z.string().refine(x => categories.includes(x)), description: z.string().trim().max(2000), colour: z.string().trim().max(50), brand: z.string().trim().max(60), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(x => Number.isFinite(Date.parse(x)) && new Date(x).toISOString().slice(0, 10) === x && x <= new Date().toISOString().slice(0, 10)), location: z.string().trim().min(2).max(100), privateDetails: z.string().trim().max(2000), images: z.array(z.string().max(150)).max(5) }).refine(data => data.type === 'found' || data.description.length >= 10, { path: ['description'], message: 'Describe your lost item in at least 10 characters.' });
@@ -67,7 +71,7 @@ export async function notifyStrongMatches(r: Row) {
         await db().batch([reserve, notice(r.owner, r.title, other), notice(other.owner, other.title, r)]);
     }
 }
-async function handle(req: Request) {
+async function handle(req: Request, sessionHeaders: Headers) {
     const url = new URL(req.url), path = url.pathname.replace(/^\/api\//, '').split('/'), method = req.method;
     if (method !== 'GET') {
         if (req.headers.get('origin') !== url.origin)
@@ -78,7 +82,7 @@ async function handle(req: Request) {
     if (path[0] === 'health' && method === 'GET') { await one('SELECT 1'); return { ok: true }; }
     if (path[0] === 'config' && method === 'GET')
         return { auth: authCapabilities(), intelligence: await intelligenceAvailable(db()) };
-    const viewer=await current(req);
+    const viewer=await current(req, sessionHeaders);
     const platform=!!viewer&&((env as unknown as Row).ADMIN_USER_IDS||'').split(',').map((s:string)=>s.trim()).includes(viewer.id);
     if (path[0] === 'media' && method === 'GET') {
         const key = path[1];
@@ -441,17 +445,26 @@ async function handle(req: Request) {
     }
     fail('This action is unavailable.', 404);
 }
-async function route(req: Request) { const started=Date.now(); try {
-    const result = await handle(req);
+async function route(req: Request) { const started=Date.now(), sessionHeaders=new Headers();
+function withSession(response: Response) {
+    const cookies=sessionHeaders.getSetCookie();
+    if(!cookies.length)return response;
+    const headers=new Headers(response.headers);
+    for(const cookie of cookies)headers.append('Set-Cookie',cookie);
+    headers.set('Cache-Control','no-store');
+    return new Response(response.body,{status:response.status,statusText:response.statusText,headers});
+}
+try {
+    const result = await handle(req, sessionHeaders);
     if (Date.now()-started>2000) await recordOperation('api','ok',Date.now()-started);
-    return result instanceof Response ? result : Response.json(result, { headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
+    return withSession(result instanceof Response ? result : Response.json(result, { headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } }));
 }
 catch (e) {
     const err = e as Error & {
         status?: number;
     };
     if (!(e instanceof z.ZodError) && (!err.status || err.status>=500)) await recordOperation('api','failed',Date.now()-started);
-    return Response.json({ error: e instanceof z.ZodError ? e.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ') : err.status ? err.message : 'Something went wrong. Please try again.' }, { status: e instanceof z.ZodError ? 400 : err.status || 500, headers: {'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'} });
+    return withSession(Response.json({ error: e instanceof z.ZodError ? e.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ') : err.status ? err.message : 'Something went wrong. Please try again.' }, { status: e instanceof z.ZodError ? 400 : err.status || 500, headers: {'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'} }));
 } }
 export const GET = route;
 export const POST = route;

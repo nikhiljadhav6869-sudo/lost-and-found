@@ -8,6 +8,8 @@ Production remote storage enables email-only access by default (`AUTH_EMAIL_CODE
 
 Codes expire after five minutes, are hashed in the existing verification table, have five failed attempts, and are single-use. Sending is limited per email and IP. Resend waits one minute. No code or mail recipient is written to application logs. Browser sessions persist for up to one year and renew with activity after a day; explicit logout revokes the session. Clearing cookies, browser limits, prolonged inactivity or operator revocation can require login again. This is not a promise of permanent sessions.
 
+Normal API responses now forward renewed session cookies, so renewal extends both the stored session and the browser login. Chromium and WebKit tests close the whole browser process and reopen the same disk profile without exporting or reinjecting cookies. They also check temporary outage recovery and that explicit logout remains effective after another restart. This verifies browser behaviour; installed Android/iPhone app behaviour still needs physical-device acceptance.
+
 ## Report form and deletion
 
 Detail fields are visible directly. The Add more details and Draft options / similar reports groups are removed. Automatic private device drafts remain, as do Save & close and publication/sign-out cleanup.

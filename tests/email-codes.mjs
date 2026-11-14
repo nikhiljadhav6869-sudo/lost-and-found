@@ -20,6 +20,12 @@ try{
  const verified=await a.call('sign-in/email-otp',{email,otp:first,name:'Email Code User'});assert.equal(verified.status,200);assert.ok(verified.headers.getSetCookie().some(v=>v.includes('Max-Age=31536000')));
  assert.equal((await a.app('dashboard')).status,200);const me=await(await a.app('me')).json();assert.ok(me.user.emailVerified);assert.equal(me.user.name,'Email Code User');
  assert.ok((await b.call('sign-in/email-otp',{email,otp:first})).status>=400);
+ // Age the stored session past its renewal interval without expiring it.
+ await env.DB.prepare('UPDATE session SET expiresAt=?,updatedAt=? WHERE userId=?').bind(Date.now()+363*86400000,Date.now()-2*86400000,me.user.id).run();
+ const renewed=await a.app('me');assert.equal(renewed.status,200);
+ assert.ok(renewed.headers.getSetCookie().some(v=>v.includes('session_token=')&&v.includes('Max-Age=31536000')&&v.includes('HttpOnly')&&v.includes('SameSite=Lax')),'App responses must renew the browser cookie as well as the database session');
+ assert.equal(renewed.headers.get('cache-control'),'no-store');
+ assert.ok((await env.DB.prepare('SELECT expiresAt FROM session WHERE userId=?').bind(me.user.id).first()).expiresAt>Date.now()+364*86400000);
  const persisted=new Client();persisted.cookies=new Map(a.cookies);assert.equal((await persisted.app('dashboard')).status,200);
  await a.call('sign-out',{});assert.equal((await persisted.app('dashboard')).status,401);
  await env.DB.prepare('DELETE FROM limits').run();assert.equal((await b.call('email-otp/send-verification-otp',{email,type:'sign-in'})).status,200);const second=code();assert.equal((await b.call('sign-in/email-otp',{email,otp:second})).status,200);assert.equal((await env.DB.prepare('SELECT count(*) AS n FROM user').first()).n,1);
