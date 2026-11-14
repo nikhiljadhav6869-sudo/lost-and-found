@@ -64,8 +64,11 @@ if (storageMode === 'remote') {
   };
 }
 
+import {extractCatalogProduct} from './product-fetch.mjs';
 export const env = {
+  extractCatalogProduct,
   DB, BUCKET,
+  get AUTH_EMAIL_CODES() { return process.env.AUTH_EMAIL_CODES; },
   get STORAGE_MODE() { return storageMode; },
   get SEED_DEMO() { return storageMode === 'remote' ? 'false' : process.env.SEED_DEMO; },
   get BETTER_AUTH_SECRET() { return process.env.BETTER_AUTH_SECRET; },

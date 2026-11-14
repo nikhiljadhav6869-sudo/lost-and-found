@@ -25,7 +25,9 @@ export async function checkQuickFound(browser,origin){
   await dialog.getByRole('button',{name:'Sign in',exact:true}).click();
   await page.getByRole('heading',{name:'Report a found item',exact:true}).waitFor();
   await checkAccessibility(page,'quick-found-dark');
-  assert.equal(await dialog.locator('input:required:visible,textarea:required:visible').count(),2);
+  assert.equal(await dialog.locator('input:required:visible,textarea:required:visible').count(),3);
+  assert.ok(await dialog.getByLabel('Date found').inputValue());
+  assert.equal(await dialog.locator('summary').count(),0);
   await dialog.getByLabel('Item name').fill('Small striped umbrella');
   await dialog.getByLabel('Approximate location').fill('Campus cafe');
   await page.screenshot({path:'.sites-runtime/browser/quick-found-dark.png',fullPage:true});

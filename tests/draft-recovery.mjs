@@ -18,7 +18,6 @@ export async function checkDraftRecovery(browser,origin) {
    await dialog().getByLabel('Item name').fill(type+' camera-switch backpack');
    await dialog().getByLabel('Approximate location').fill('Public library');
    await dialog().getByLabel('Category').selectOption('Bags');
-   await dialog().getByText('Add more details (optional)',{exact:true}).click();
    await dialog().getByLabel('Public description').fill('Canvas backpack with green shoulder straps.');
    await dialog().getByLabel('Colour',{exact:true}).fill('Green');
    await dialog().getByLabel('Brand (optional)').fill('Field');
@@ -34,7 +33,6 @@ export async function checkDraftRecovery(browser,origin) {
    assert.equal(await dialog().getByLabel('Item name').inputValue(),type+' latest camera draft');
    assert.equal(await dialog().getByLabel('Approximate location').inputValue(),'Public library');
    assert.equal(await dialog().getByLabel('Category').inputValue(),'Bags');
-   await dialog().getByText('Add more details (optional)',{exact:true}).click();
    for(const [label,value] of [['Public description','Canvas backpack with green shoulder straps.'],['Colour','Green'],['Brand (optional)','Field'],['Date '+type,'2026-10-08'],['Private distinguishing features','Private orange stitching inside']])assert.equal(await dialog().getByLabel(label).inputValue(),value);
    assert.equal(await dialog().getByRole('img',{name:'Upload 1',exact:true}).getAttribute('src'),image);
    await dialog().locator('input[type=file][multiple]').setInputFiles([]);
@@ -46,17 +44,18 @@ export async function checkDraftRecovery(browser,origin) {
    await dialog().getByRole('button',{name:'Save & close',exact:true}).click();
    await page.getByRole('button',{name:`I ${type} something`,exact:true}).first().click();
    assert.equal(await dialog().getByLabel('Private distinguishing features').inputValue(),'Private orange stitching inside');
-   await dialog().getByText('Draft options & similar reports',{exact:true}).click();
-   await dialog().getByRole('button',{name:'Discard draft',exact:true}).click();
+   await dialog().getByRole('button',{name:'Publish report',exact:true}).click();
+   await page.getByRole('heading',{name:type+' latest camera draft',exact:true}).waitFor();
+   await page.keyboard.press('Escape');
    assert.equal((await storage()).length,0);
    await page.reload();assert.equal(await dialog().count(),0);
   }
-  console.log('PASS lost/found drafts recover all fields and ready photos after navigation, reload, camera cancellation and a fresh tab; explicit discard clears them');
+  console.log('PASS lost/found drafts recover all fields and ready photos after navigation, reload, camera cancellation and a fresh tab; publication clears them');
 
   const original={type:'found',title:'Original editable bag',category:'Bags',description:'',colour:'',brand:'',date:'2026-10-08',location:'Campus library',privateDetails:'Original private note',images:[]};
   const created=await context.request.post(origin+'/api/reports',{headers:{origin},data:original});assert.equal(created.status(),200);
   const reportId=(await created.json()).id;
-  await page.locator('.avatar').click();await page.getByRole('button',{name:'Edit',exact:true}).click();
+  await page.locator('.avatar').click();await page.locator('.manage-list article').filter({hasText:'Original editable bag'}).getByRole('button',{name:'Edit',exact:true}).click();
   await dialog().getByLabel('Item name').fill('Recovered edited bag');
   await dialog().getByLabel('Private distinguishing features').fill('Edited private note');
   await page.reload();await page.getByRole('heading',{name:'Edit report',exact:true}).waitFor();

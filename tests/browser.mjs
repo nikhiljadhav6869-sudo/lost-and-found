@@ -73,18 +73,13 @@ try{
  await form.getByLabel('Item name').fill('Browser draft backpack');
  await form.getByLabel('Public description').fill('Green canvas backpack with brown straps.');
  await form.getByLabel('Approximate location').fill('Library');
- await form.getByText('Add more details (optional)',{exact:true}).click();
- await form.getByText('Draft options & similar reports',{exact:true}).click();
  await form.getByLabel('Private distinguishing features').fill('PRIVATE-DRAFT-NOTE');
  const saved=await page.evaluate(()=>Object.entries(localStorage).filter(([k])=>k.startsWith('lf-report-draft-v2:')));
  assert.ok(saved.length);assert.ok(JSON.stringify(saved).includes('PRIVATE-DRAFT-NOTE'));
  await form.getByRole('button',{name:'Save & close',exact:true}).click();
  await page.getByRole('button',{name:'I lost something',exact:true}).first().click();
- await form.getByText('Draft options & similar reports',{exact:true}).click();
  assert.equal(await form.getByLabel('Item name').inputValue(),'Browser draft backpack');
  assert.equal(await form.getByLabel('Private distinguishing features').inputValue(),'PRIVATE-DRAFT-NOTE');
- await form.getByRole('button',{name:'Check my similar reports',exact:true}).click();
- await form.getByText('No close duplicate found among your latest active reports.').waitFor();
  await form.getByRole('button',{name:'Publish report',exact:true}).click();
  await page.getByRole('heading',{name:'Browser draft backpack',exact:true}).waitFor();
  assert.equal(await page.evaluate(()=>Object.keys(localStorage).filter(k=>k.startsWith('lf-report-draft-v2:')).length),0);

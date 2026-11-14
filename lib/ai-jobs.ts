@@ -41,7 +41,7 @@ export async function processEmbeddingJobs(encode: Encoder, count = 10) {
             if (!r || r.demo || r.hidden || !['Open','Claim Pending'].includes(r.status)) {
                 await db().prepare("UPDATE embedding_jobs SET state='skipped',lease=NULL WHERE reportId=? AND lease=?").bind(job.reportId, lease).run(); continue;
             }
-            const [text, image] = encoded(await encode(publicEmbeddingText(r), await imagesFor(JSON.parse(r.images), r.owner)));
+            const [text, image] = encoded(await encode(publicEmbeddingText(r), await imagesFor(r.referenceImage?[]:JSON.parse(r.images), r.owner)));
             const writes = await db().batch([
                 db().prepare(`INSERT INTO embeddings(reportId,revision,model,textVector,imageVector,created)
                   SELECT ?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM reports r JOIN embedding_jobs j ON j.reportId=r.id

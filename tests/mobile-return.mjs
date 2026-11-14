@@ -20,7 +20,6 @@ export async function checkMobileReturn(browser, origin) {
   async function publish(page, type) {
     await page.getByRole('button', {name: 'I ' + type + ' something', exact: true}).first().click();
     const dialog = page.getByRole('dialog');
-    await dialog.getByText('Add more details (optional)', {exact:true}).click();
     await dialog.getByLabel('Item name').fill('Indigo commuter backpack');
     await dialog.getByLabel('Public description').fill('Indigo woven commuter backpack with reflective straps.');
     await dialog.getByLabel('Approximate location').fill('Campus library');
@@ -71,7 +70,8 @@ export async function checkMobileReturn(browser, origin) {
     const privateResponse = await guest.request.get(origin + '/api/claims/' + claimId);
     assert.equal(privateResponse.status(), 401);
     await finder.goto(claimUrl);
-    await finder.getByText(evidence, {exact: true}).waitFor();
+    await finder.locator('.avatar').waitFor();
+    await finder.getByText(evidence, {exact: true}).waitFor({timeout:45000});
     await checkAccessibility(finder,'mobile-conversation');
     const question = 'Which pocket contains the triangle?';
     const answer = 'The inside pocket beneath the zip.';

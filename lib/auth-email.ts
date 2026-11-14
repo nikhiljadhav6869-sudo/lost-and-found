@@ -5,6 +5,32 @@ type MailSettings = { apiKey: string; sender: string; name: string };
 type AuthMail = { to: string; name: string; url: string; purpose: 'verify' | 'reset' };
 const deliveries = new Set<Promise<void>>();
 
+export function emailCodesRequired() {
+    const config = env as unknown as Record<string, string | undefined>;
+    return config.AUTH_EMAIL_CODES === 'true' || (config.AUTH_EMAIL_CODES !== 'false' && config.STORAGE_MODE === 'remote');
+}
+
+export async function sendAccountCode(email: string, code: string, purpose: 'signup' | 'login') {
+    const settings = authMailSettings();
+    if (!settings || !/^\d{6}$/.test(code)) throw new Error('Email code delivery is unavailable.');
+    const started=Date.now();
+    try {
+        const response=await fetch('https://api.brevo.com/v3/smtp/email', {
+            method:'POST',redirect:'error',signal:AbortSignal.timeout(10000),
+            headers:{'api-key':settings.apiKey,'content-type':'application/json',accept:'application/json'},
+            body:JSON.stringify({sender:{email:settings.sender,name:settings.name},to:[{email}],
+                subject:purpose==='signup'?'Verify your Lost & Found account':'Your Lost & Found sign-in code',
+                textContent:`Your Lost & Found verification code is: ${code}\n\nIt expires in 5 minutes. Do not share this code.\n${purpose==='login'?'Enter this code in the app to sign in or finish creating your account. No password is needed.':'Enter it in the app to verify your email address.'}\nIf you did not request this, do not use or share the code.`,
+                tags:[purpose==='signup'?'signup-code':'login-code']})
+        });
+        if(!response.ok)throw new Error('Email code delivery is unavailable. Try resending shortly.');
+        await recordOperation('email','accepted',Date.now()-started);
+    } catch {
+        await recordOperation('email','failed',Date.now()-started);
+        throw new Error('Email code delivery is unavailable. Try resending shortly.');
+    }
+}
+
 // Credentials are read only by server code. A partial configuration must not
 // silently turn verification off.
 export function authMailSettings(): MailSettings | null {

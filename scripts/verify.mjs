@@ -11,6 +11,8 @@ const checks=[
  ['College mobile and offline workflows',['tests/college-browser.mjs']],
  ['College WebKit workflows',['tests/college-browser.mjs','--webkit']],
  ['Upgrade safeguards',['tests/upgrades.mjs']],
+ ['Email-only access',['tests/email-codes.mjs']],
+ ['Product extraction',['tests/products.mjs']],
  ['Authentication recovery',['tests/auth-recovery.mjs']],
  ['Storage transactions',['tests/storage.mjs']],
  ['Intelligence and search',['tests/intelligence.mjs']],

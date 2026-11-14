@@ -7,7 +7,7 @@ import { ArrowRight, Loader2, Lock, X } from 'lucide-react';
 import { requestJson, RequestError as AuthError } from '../lib/request';
 import { keepDialogFocus } from '../lib/dialog-focus';
 
-type Capabilities = { passwordReset: boolean; emailVerification: boolean; emailVerificationRequired: boolean };
+type Capabilities = { passwordReset: boolean; emailVerification: boolean; emailVerificationRequired: boolean; emailCodes?: boolean };
 type Props = { mode: string; onModeChange: (mode: string) => void; onAuthenticated: () => void | Promise<void> };
 const accountRequest = requestJson;
 
@@ -15,6 +15,7 @@ const accountRequest = requestJson;
 export default function AccountAccess({ mode, onModeChange, onAuthenticated }: Props) {
     const dialog = useRef<HTMLDialogElement>(null);
     const [email, setEmail] = useState('');
+    const [accountName,setAccountName]=useState('');
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     const [message, setMessage] = useState('');
@@ -68,7 +69,16 @@ export default function AccountAccess({ mode, onModeChange, onAuthenticated }: P
         const values = Object.fromEntries(new FormData(event.currentTarget));
         setBusy(true); setError(''); setMessage('');
         try {
-            if (mode === 'forgot') {
+            if(capabilities?.emailCodes){
+                if(mode==='otp'){
+                    await accountRequest('auth/sign-in/email-otp',{email:email.trim(),otp:values.otp,...(accountName?{name:accountName}:{})});
+                    await onAuthenticated();onModeChange('');
+                }else{
+                    setAccountName(typeof values.name==='string'?values.name:'');
+                    await accountRequest('auth/email-otp/send-verification-otp',{email:email.trim(),type:'sign-in'});
+                    onModeChange('otp');setCooldown(60);setMessage('Enter the six-digit code sent to your email. Check Spam or Junk too.');
+                }
+            } else if (mode === 'forgot') {
                 await accountRequest('auth/request-password-reset', { email, redirectTo: '/?auth=reset' });
                 setCooldown(60);
                 setMessage('If an account uses this email, a reset link will arrive shortly. Check your spam folder too.');
@@ -106,29 +116,31 @@ export default function AccountAccess({ mode, onModeChange, onAuthenticated }: P
     }
 
     if (!mode) return null;
-    const titles: Record<string, string> = { login: 'Welcome back.', register: 'A good place to belong.', forgot: 'Forgot your password?', verify: 'Verify your email.', reset: 'Choose a new password.' };
-    const descriptions: Record<string, string> = { login: 'Sign in to your community account.', register: 'Create an account to report, save, and safely reconnect.', forgot: 'We’ll send a private link to your account email.', verify: 'Confirm that this email address belongs to you.', reset: 'Use a password you haven’t used on another account.' };
+    const titles: Record<string, string> = { otp:'Check your email.', login: 'Welcome back.', register: 'A good place to belong.', forgot: 'Forgot your password?', verify: 'Verify your email.', reset: 'Choose a new password.' };
+    const descriptions: Record<string, string> = { otp:'Enter the latest six-digit code. It expires in 5 minutes. Never share it.', login: 'Sign in to your community account.', register: 'Create an account to report, save, and safely reconnect.', forgot: 'We’ll send a private link to your account email.', verify: 'Confirm that this email address belongs to you.', reset: 'Use a password you haven’t used on another account.' };
     const labels: Record<string, string> = { login: 'Sign in', register: 'Create account', forgot: 'Send reset link', verify: 'Send verification link', reset: 'Save new password' };
     const emailUnavailable = (mode === 'forgot' && capabilities?.passwordReset === false) || (mode === 'verify' && capabilities?.emailVerification === false);
     const close = () => { if (!busy) changeMode(''); };
     return <dialog className="modal" ref={dialog} aria-labelledby="account-access-title" onKeyDown={keepDialogFocus} onCancel={event => { event.preventDefault(); close(); }} onClick={event => { if (event.target === dialog.current) close(); }}>
         <header><h2 id="account-access-title">{titles[mode] || titles.login}</h2><button type="button" className="icon-btn" aria-label="Close account dialog" disabled={busy} onClick={close}><X /></button></header>
-        <p className="modal-intro">{descriptions[mode] || descriptions.login}</p>
+        <p className="modal-intro">{capabilities?.emailCodes && ['login','register','verify','forgot'].includes(mode)?'Use your own email address. We will send a verification code; no password is needed.':descriptions[mode] || descriptions.login}</p>
         {error && <div className="alert error" role="alert">{error}</div>}
         {configError && <p role="alert">Account settings could not be loaded. <button disabled={busy} onClick={() => { setBusy(true); accountRequest('config').then(data => { setCapabilities(data.auth); setConfigError(false); }).catch(() => setConfigError(true)).finally(() => setBusy(false)); }}>{tr("Retry connection")}</button></p>}
-        {mode === 'verify' && <div className="private-note">Check Spam, Junk and your institution’s quarantine folder. Allow a few minutes and use the newest link; verification links expire after one hour. A request confirmation does not guarantee inbox delivery. You can browse public items while waiting.</div>}
+        {mode === 'verify' && !capabilities?.emailCodes && <div className="private-note">Check Spam, Junk and your institution’s quarantine folder. Allow a few minutes and use the newest link; verification links expire after one hour. A request confirmation does not guarantee inbox delivery. You can browse public items while waiting.</div>}
         {message && <div className="alert" role="status">{message}</div>}
         {emailUnavailable ? <p role="status">Email delivery is not available yet. Please contact the app operator for help.</p> : <form onSubmit={submit}>
             {mode === 'register' && <label>Your name<input name="name" autoComplete="name" minLength={2} maxLength={80} required disabled={busy}/></label>}
-            {mode !== 'reset' && <label>{tr("Email")}<input name="email" type="email" autoComplete="email" required value={email} disabled={busy} onChange={event => setEmail(event.target.value)}/></label>}
-            {['login', 'register', 'reset'].includes(mode) && <label>{mode === 'reset' ? 'New password' : tr("Password")}<input key={mode} name="password" type="password" minLength={12} maxLength={128} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} required disabled={busy}/><small>At least 12 characters.</small></label>}
-            {mode === 'reset' && <label>Confirm new password<input name="confirmPassword" type="password" minLength={12} maxLength={128} autoComplete="new-password" required disabled={busy}/></label>}
-            <button className="button primary full" disabled={busy || (cooldown > 0 && ['forgot', 'verify'].includes(mode)) || (!capabilities && ['forgot', 'verify'].includes(mode))}>{busy && <Loader2 className="spin" size={18}/>} {cooldown > 0 && ['forgot', 'verify'].includes(mode) ? `Resend in ${cooldown}s` : labels[mode] || labels.login}<ArrowRight size={17}/></button>
+            {mode !== 'reset' && mode !== 'otp' && <label>{tr("Email")}<input name="email" type="email" autoComplete="email" required value={email} disabled={busy} onChange={event => setEmail(event.target.value)}/></label>}
+            {capabilities && !capabilities.emailCodes && ['login', 'register', 'reset'].includes(mode) && <label>{mode === 'reset' ? 'New password' : tr("Password")}<input key={mode} name="password" type="password" minLength={12} maxLength={128} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} required disabled={busy}/><small>At least 12 characters.</small></label>}
+            {mode === 'otp' && <><p>Code sent to <strong>{email}</strong></p><label>Email verification code<input name="otp" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" minLength={6} maxLength={6} required disabled={busy}/></label></>}
+            {mode === 'reset' && !capabilities?.emailCodes && <label>Confirm new password<input name="confirmPassword" type="password" minLength={12} maxLength={128} autoComplete="new-password" required disabled={busy}/></label>}
+            <button className="button primary full" disabled={busy || !capabilities || (cooldown > 0 && ['forgot', 'verify'].includes(mode)) || (!capabilities && ['forgot', 'verify'].includes(mode))}>{busy && <Loader2 className="spin" size={18}/>} {cooldown > 0 && ['forgot', 'verify'].includes(mode) ? `Resend in ${cooldown}s` : mode==='otp'?'Verify code':capabilities?.emailCodes?'Send verification code':labels[mode] || labels.login}<ArrowRight size={17}/></button>
         </form>}
+        {mode==='otp' && <button type="button" className="text-button" disabled={busy||cooldown>0} onClick={async()=>{setBusy(true);setError('');try{await accountRequest('auth/email-otp/send-verification-otp',{email:email.trim(),type:'sign-in'});setCooldown(60);setMessage('A new code was requested. Use the newest code in your inbox.');}catch(e){setError(e instanceof Error?e.message:'Could not send a code.');}finally{setBusy(false);}}}>{cooldown?`Resend code in ${cooldown}s`:'Resend code'}</button>}
         {mode === 'login' && <>
             <p className="form-switch">New around here? <button disabled={busy} onClick={() => changeMode('register')}>{tr("Create an account")}</button></p>
             {capabilities?.passwordReset && <p className="form-switch"><button disabled={busy} onClick={() => changeMode('forgot')}>{tr("Forgot password?")}</button></p>}
-            {capabilities?.emailVerification && <p className="form-switch"><button disabled={busy} onClick={() => changeMode('verify')}>{tr("Resend verification email")}</button></p>}
+            {capabilities?.emailVerification && !capabilities.emailCodes && <p className="form-switch"><button disabled={busy} onClick={() => changeMode('verify')}>{tr("Resend verification email")}</button></p>}
         </>}
         {mode !== 'login' && <p className="form-switch"><button disabled={busy} onClick={() => changeMode('login')}>{tr("Back to sign in")}</button>{mode === 'verify' && capabilities?.passwordReset && <> · <button disabled={busy} onClick={() => changeMode('forgot')}>{tr("Forgot password?")}</button></>}</p>}
         <div className="private-note"><Lock size={14}/> Your email is never shown on public reports.</div>

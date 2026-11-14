@@ -122,3 +122,21 @@ assert.equal((await claimant.call('claims/' + pendingClaim.id)).claim.status, 'R
 await finder.call('reports/' + editable.id, undefined, 'DELETE');
 await anonymous.call('reports/' + editable.id, undefined, 'GET', 404);
 console.log('PASS Open reports still edit and close, and closed reports still delete');
+
+// Deletion removes owner lists, other users' saved entries and private claim links.
+await env.DB.prepare('DELETE FROM limits').run();
+for(const type of ['lost','found']){
+ const report=await finder.call('reports',{...reportData,type,title:'Delete '+type+' test bag'});
+ await claimant.call('save',{reportId:report.id,saved:true});
+ await stranger.call('reports/'+report.id,undefined,'DELETE',403);
+ await finder.call('reports/'+report.id,undefined,'DELETE');
+ await anonymous.call('reports/'+report.id,undefined,'GET',404);
+ assert.ok(!(await finder.call('dashboard')).reports.some(r=>r.id===report.id));
+ assert.ok(!(await claimant.call('dashboard')).saved.some(r=>r.id===report.id));
+ assert.ok(!(await anonymous.call('reports')).items.some(r=>r.id===report.id));
+}
+console.log('PASS both report types delete from owner dashboard, public search and saved entries; nonowners are denied');
+const reference=await finder.call('reports',{...reportData,type:'lost',title:'Reference headphones',referenceImage:true,lostTime:'14:30',productData:{product_name:'Reference headphones',brand:'',model:'H1',color:'',product_image:'',description:'',source_website:'www.amazon.in',product_url:'https://www.amazon.in/dp/B012345678?tag=tracking'}});
+const referencePublic=(await anonymous.call('reports/'+reference.id)).report;
+assert.equal(referencePublic.productData.model,'H1');assert.equal(referencePublic.productData.product_url,'https://www.amazon.in/dp/B012345678');assert.equal(referencePublic.referenceImage,1);assert.equal(referencePublic.lostTime,'14:30');assert.equal(referencePublic.privateDetails,undefined);
+console.log('PASS reference product metadata persists through existing report API without publishing unique ownership details');

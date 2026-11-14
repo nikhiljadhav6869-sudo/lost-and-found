@@ -1,3 +1,4 @@
+import {productDetails} from './product-data.ts';
 type DraftData = Record<string, any>;
 const PREFIX = 'lf-report-draft-v2:';
 const ACTIVE = 'lf-report-active-v2:';
@@ -10,6 +11,10 @@ export function reportDraftKey(userId: string, data: DraftData) {
 function fields(value: DraftData): DraftData {
     if (!value || !['lost','found'].includes(value.type)) throw Error('Invalid draft');
     const data: DraftData = {type:value.type};
+    data.noPhoto=value.noPhoto===true;data.referenceImage=!!value.referenceImage;data.lostTime=typeof value.lostTime==='string'&&/^$|^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(value.lostTime)?value.lostTime:'';
+    if(value.productData)data.productData=productDetails.parse(value.productData);
+    if(typeof value.productLink==='string')data.productLink=value.productLink.slice(0,2000);
+    if(['Amazon','Flipkart','Other Website'].includes(value.productWebsite))data.productWebsite=value.productWebsite;
     if(value.submissionId&&typeof value.submissionId==='string'&&/^[a-f0-9-]{36}$/.test(value.submissionId))data.submissionId=value.submissionId;
     if(value.workspaceId){if(typeof value.workspaceId!=='string'||!/^[a-f0-9-]{36}$/.test(value.workspaceId))throw Error('Invalid workspace');data.workspaceId=value.workspaceId;}
     if (value.id) {

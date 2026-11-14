@@ -11,6 +11,7 @@ import { ensureDemo } from '../../../lib/demo';
 import { boundedBody } from '../../../lib/body';
 import { maintain } from '../../../lib/maintenance';
 import {workspaceRoute,requireWorkspace,canStaff,digest} from '../../../lib/workspaces';
+import {productInput,productDetails,canonicalProductURL} from '../../../lib/product-data';
 export const dynamic = 'force-dynamic';
 type Row = Record<string, any>;
 const db = () => env.DB!;
@@ -25,9 +26,9 @@ const notify = (u: string, body: string, link: string) => db().prepare('INSERT I
 async function limit(key: string, max = 30) { const k = key + ':' + Math.floor(now() / 60000); const r = await one('INSERT INTO limits(key,count) VALUES(?,1) ON CONFLICT(key) DO UPDATE SET count=count+1 RETURNING count', k); if (r!.count > max)
     fail('Please slow down and try again in a minute.', 429); }
 async function current(req: Request) { const s = await auth(new URL(req.url).origin).api.getSession({ headers: req.headers }); return s?.user ?? null; }
-const publicReport = (r: Row): Row => { const { privateDetails, textVector, imageVector, model, revision, matchRevision, ...safe } = r; return { ...safe, images: JSON.parse(r.images) }; };
+const publicReport = (r: Row): Row => { const { privateDetails, textVector, imageVector, model, revision, matchRevision, ...safe } = r; return { ...safe, images: JSON.parse(r.images),productData:r.productData?JSON.parse(r.productData):null }; };
 async function blocked(a: string, b: string) { return !!await one('SELECT 1 FROM blocks WHERE (userId=? AND blocked=?) OR (userId=? AND blocked=?)', a, b, b, a); }
-const reportSchema = z.object({ workspaceId:z.string().uuid().nullable().optional(), submissionId:z.string().uuid().optional(), type: z.enum(['lost', 'found']), title: z.string().trim().min(3).max(100), category: z.string().refine(x => categories.includes(x)), description: z.string().trim().max(2000), colour: z.string().trim().max(50), brand: z.string().trim().max(60), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(x => Number.isFinite(Date.parse(x)) && new Date(x).toISOString().slice(0, 10) === x && x <= new Date().toISOString().slice(0, 10)), location: z.string().trim().min(2).max(100), privateDetails: z.string().trim().max(2000), images: z.array(z.string().max(150)).max(5) }).refine(data => data.type === 'found' || data.description.length >= 10, { path: ['description'], message: 'Describe your lost item in at least 10 characters.' });
+const reportSchema = z.object({ productData:productDetails.nullable().optional(),referenceImage:z.coerce.boolean().default(false),lostTime:z.string().regex(/^$|^([01][0-9]|2[0-3]):[0-5][0-9]$/).default(''), workspaceId:z.string().uuid().nullable().optional(), submissionId:z.string().uuid().optional(), type: z.enum(['lost', 'found']), title: z.string().trim().min(3).max(100), category: z.string().refine(x => categories.includes(x)), description: z.string().trim().max(2000), colour: z.string().trim().max(50), brand: z.string().trim().max(60), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(x => Number.isFinite(Date.parse(x)) && new Date(x).toISOString().slice(0, 10) === x && x <= new Date().toISOString().slice(0, 10)), location: z.string().trim().min(2).max(100), privateDetails: z.string().trim().max(2000), images: z.array(z.string().max(150)).max(5) }).refine(data => data.type === 'found' || data.description.length >= 10, { path: ['description'], message: 'Describe your lost item in at least 10 characters.' });
 async function matchingReports(r: Row) {
     if (r.hidden || !['Open', 'Claim Pending'].includes(r.status)) return [];
     const sourceEmbedding = await one('SELECT * FROM embeddings WHERE reportId=? AND revision=?', r.id, r.matchRevision);
@@ -194,6 +195,18 @@ async function handle(req: Request) {
                 throw e;
             fail('Please send valid form data.');
         }
+    if(path[0]==='product-extract'&&method==='POST'){
+        await limit('product-extract:'+user.id,5);
+        const input=productInput.parse(b),extract=(env as unknown as Row).extractCatalogProduct;
+        if(typeof extract!=='function')fail('Product extraction is unavailable on this host. Enter details manually or upload a screenshot.',503);
+        let result:Row;try{result=await extract(input);}catch(e){fail((e as Error).message,400);}
+        if(result!.image){
+            try{const image=result!.image,bytes=await cleanImage(new Uint8Array(image.bytes),image.type),ext=image.type==='image/jpeg'?'jpg':image.type==='image/png'?'png':'webp',key=id()+'.'+ext;
+                await env.BUCKET!.put(key,bytes,{httpMetadata:{contentType:image.type}});await run('INSERT INTO uploads(id,owner,created) VALUES(?,?,?)',key,user.id,now());result!.product.product_image='/api/media/'+key;
+            }catch{result!.warnings.push('The reference image could not be saved. You can continue without it.');}
+        }
+        return {product:productDetails.parse(result!.product),warnings:result!.warnings,method:result!.method};
+    }
     const workspace=await workspaceRoute(db(),path,method,b,user,admin);if(workspace!==null)return workspace;
     const feature = await featureRoute(db(), path, method, b, user, url, publicReport, admin);
     if (feature !== null) return feature;
@@ -218,10 +231,14 @@ async function handle(req: Request) {
         if(existing)await requireWorkspace(db(),existing.workspaceId,user.id,admin);
         if(existing&&await one('SELECT 1 FROM custody WHERE reportId=?',existing.id))fail('College staff manage this item after receiving it.',409);
         if (method === 'DELETE') {
-            if (['Return Arranged', 'Returned'].includes(existing!.status))
-                fail('Reports with arranged or completed returns cannot be deleted.');
-            const result = await run('DELETE FROM reports WHERE id=? AND owner=? AND status IN (\'Open\',\'Claim Pending\',\'Closed\') AND NOT EXISTS(SELECT 1 FROM custody WHERE reportId=reports.id)', path[1], user.id);
-            if (!result.meta.changes)
+            if (existing!.status === 'Return Arranged')
+                fail('Complete or cancel the arranged return before deleting this report.');
+            const deletable = "SELECT id FROM reports WHERE id=? AND owner=? AND status IN ('Open','Claim Pending','Closed','Returned') AND NOT EXISTS(SELECT 1 FROM custody WHERE reportId=reports.id)";
+            const result = await db().batch([
+                db().prepare(`DELETE FROM notifications WHERE (link='/?report='||? OR link IN (SELECT '/?claim='||id FROM claims WHERE reportId=?)) AND EXISTS(${deletable})`).bind(path[1],path[1],path[1],user.id),
+                db().prepare(`DELETE FROM reports WHERE id IN (${deletable})`).bind(path[1],user.id),
+            ]);
+            if (!result[1].meta.changes)
                 fail('This report changed before it could be deleted. Refresh and try again.', 409);
             return { ok: true };
         }
@@ -238,6 +255,8 @@ async function handle(req: Request) {
         if (existing && !['Open', 'Claim Pending'].includes(existing.status))
             fail('Only open reports can be edited.');
         const data = reportSchema.parse(b);
+        if(data.type!=='lost'&&(data.productData||data.referenceImage))fail('Product references belong on lost-item reports.');
+        if(data.productData?.product_url){try{canonicalProductURL(data.productData.product_url);}catch{fail('Enter a public HTTPS product link without account credentials.');}}
         const requestHash=data.submissionId?await digest(JSON.stringify(data)):'';
         if(!existing&&data.submissionId){const receipt=await one('SELECT reportId,requestHash FROM report_submissions WHERE userId=? AND submissionId=?',user.id,data.submissionId);if(receipt){if(receipt.requestHash!==requestHash)fail('This submission was already used for different details.',409);return {id:receipt.reportId};}}
 
@@ -254,8 +273,9 @@ async function handle(req: Request) {
                 fail('Use your own uploaded images.');
         }
         const reportId = existing?.id || id();
-        const fields = ['workspaceId','type', 'title', 'category', 'description', 'colour', 'brand', 'date', 'location', 'privateDetails', 'images'];
-        const vals = fields.map(k => k === 'images' ? JSON.stringify(data.images) : (data as Row)[k]??null);
+        const fields = ['workspaceId','type', 'title', 'category', 'description', 'colour', 'brand', 'date', 'location', 'privateDetails', 'images','productData','referenceImage','lostTime'];
+        const product=data.productData?{...data.productData,product_name:data.title,brand:data.brand,color:data.colour,description:data.description,product_url:data.productData.product_url?canonicalProductURL(data.productData.product_url):'',product_image:data.productData.product_image&&data.images.includes(data.productData.product_image)?data.productData.product_image:''}:null;
+        const vals = fields.map(k => k === 'images' ? JSON.stringify(data.images) : k==='productData'?product?JSON.stringify(product):null:k==='referenceImage'?Number(data.referenceImage):(data as Row)[k]??null);
         const imageGuard = data.images.map(() => 'EXISTS(SELECT 1 FROM uploads u WHERE u.id=? AND u.owner=? AND NOT EXISTS(SELECT 1 FROM upload_cleanup q WHERE q.id=u.id))').join(' AND ') || '1';
         const imageParams = data.images.flatMap(image => [image.slice('/api/media/'.length), user.id]);
         if (existing) {
@@ -267,14 +287,14 @@ async function handle(req: Request) {
             if(data.submissionId){
                 await db().batch([
                   db().prepare(`INSERT OR IGNORE INTO report_submissions(userId,submissionId,reportId,requestHash,created) SELECT ?,?,?,?,? WHERE ${imageGuard}`).bind(user.id,data.submissionId,reportId,requestHash,now(),...imageParams),
-                  db().prepare(`INSERT INTO reports(id,owner,${fields.join(',')},created) SELECT ${Array(14).fill('?').join(',')} WHERE EXISTS(SELECT 1 FROM report_submissions WHERE userId=? AND submissionId=? AND reportId=?)`).bind(reportId,user.id,...vals,now(),user.id,data.submissionId,reportId)
+                  db().prepare(`INSERT INTO reports(id,owner,${fields.join(',')},created) SELECT ${Array(fields.length+3).fill('?').join(',')} WHERE EXISTS(SELECT 1 FROM report_submissions WHERE userId=? AND submissionId=? AND reportId=?)`).bind(reportId,user.id,...vals,now(),user.id,data.submissionId,reportId)
                 ]);
                 const receipt=await one('SELECT reportId,requestHash FROM report_submissions WHERE userId=? AND submissionId=?',user.id,data.submissionId);
                 if(!receipt)fail('A photo expired before publication. Upload it again and retry.',409);
                 if(receipt.requestHash!==requestHash)fail('This submission was already used for different details.',409);
                 await notifyStrongMatches((await one('SELECT * FROM reports WHERE id=?',receipt.reportId))!);return {id:receipt.reportId};
             }
-            const result = await run(`INSERT INTO reports(id,owner,${fields.join(',')},created) SELECT ${Array(14).fill('?').join(',')} WHERE ${imageGuard}`, reportId, user.id, ...vals, now(), ...imageParams);
+            const result = await run(`INSERT INTO reports(id,owner,${fields.join(',')},created) SELECT ${Array(fields.length+3).fill('?').join(',')} WHERE ${imageGuard}`, reportId, user.id, ...vals, now(), ...imageParams);
             if (!result.meta.changes) fail('A photo expired before publication. Upload it again and retry.', 409);
         }
         const r = await one('SELECT * FROM reports WHERE id=?', reportId);
