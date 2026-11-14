@@ -12,7 +12,7 @@ const checks=[
  ['College WebKit workflows',['tests/college-browser.mjs','--webkit']],
  ['Upgrade safeguards',['tests/upgrades.mjs']],
  ['Email-only access',['tests/email-codes.mjs']],
- ['Product extraction',['tests/products.mjs']],
+ ['Manual product references',['tests/products.mjs']],
  ['Authentication recovery',['tests/auth-recovery.mjs']],
  ['Storage transactions',['tests/storage.mjs']],
  ['Intelligence and search',['tests/intelligence.mjs']],

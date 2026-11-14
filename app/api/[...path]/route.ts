@@ -11,7 +11,7 @@ import { ensureDemo } from '../../../lib/demo';
 import { boundedBody } from '../../../lib/body';
 import { maintain } from '../../../lib/maintenance';
 import {workspaceRoute,requireWorkspace,canStaff,digest} from '../../../lib/workspaces';
-import {productInput,productDetails,canonicalProductURL} from '../../../lib/product-data';
+import {productDetails,canonicalProductURL} from '../../../lib/product-data';
 export const dynamic = 'force-dynamic';
 type Row = Record<string, any>;
 const db = () => env.DB!;
@@ -196,16 +196,7 @@ async function handle(req: Request) {
             fail('Please send valid form data.');
         }
     if(path[0]==='product-extract'&&method==='POST'){
-        await limit('product-extract:'+user.id,5);
-        const input=productInput.parse(b),extract=(env as unknown as Row).extractCatalogProduct;
-        if(typeof extract!=='function')fail('Product extraction is unavailable on this host. Enter details manually or upload a screenshot.',503);
-        let result:Row;try{result=await extract(input);}catch(e){fail((e as Error).message,400);}
-        if(result!.image){
-            try{const image=result!.image,bytes=await cleanImage(new Uint8Array(image.bytes),image.type),ext=image.type==='image/jpeg'?'jpg':image.type==='image/png'?'png':'webp',key=id()+'.'+ext;
-                await env.BUCKET!.put(key,bytes,{httpMetadata:{contentType:image.type}});await run('INSERT INTO uploads(id,owner,created) VALUES(?,?,?)',key,user.id,now());result!.product.product_image='/api/media/'+key;
-            }catch{result!.warnings.push('The reference image could not be saved. You can continue without it.');}
-        }
-        return {product:productDetails.parse(result!.product),warnings:result!.warnings,method:result!.method};
+        fail('Automatic product extraction has been removed. Add a reference screenshot and enter the details manually.',410);
     }
     const workspace=await workspaceRoute(db(),path,method,b,user,admin);if(workspace!==null)return workspace;
     const feature = await featureRoute(db(), path, method, b, user, url, publicReport, admin);

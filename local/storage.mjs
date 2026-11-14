@@ -64,9 +64,7 @@ if (storageMode === 'remote') {
   };
 }
 
-import {extractCatalogProduct} from './product-fetch.mjs';
 export const env = {
-  extractCatalogProduct,
   DB, BUCKET,
   get AUTH_EMAIL_CODES() { return process.env.AUTH_EMAIL_CODES; },
   get STORAGE_MODE() { return storageMode; },

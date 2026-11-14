@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
-import {productURL,structuredProduct} from '../lib/product-data.ts';
-import {publicIPv4,extractCatalogProduct,safeProductRequest} from '../local/product-fetch.mjs';
+import {productURL,canonicalProductURL,manualProductReference} from '../lib/product-data.ts';
 for(const value of ['http://example.com/p','https://user:password@example.com/p','https://127.0.0.1/p','https://[::1]/p','https://example.local/p','https://example.com:444/p'])assert.throws(()=>productURL(value));
-for(const address of ['127.0.0.1','10.0.0.1','169.254.169.254','172.16.0.1','192.168.1.1','100.64.0.1','::1'])assert.equal(publicIPv4(address),false);
-await assert.rejects(()=>safeProductRequest('https://example.com/p',{hosts:[]}));
-const html='<script type="application/ld+json">'+JSON.stringify({'@type':'Product',name:'Fixture headphones',brand:{name:'Fixture'},model:'H1',color:'Blue',description:'Blue over-ear headphones with folding arms.'})+'</script>';
-const config={PRODUCT_METADATA_SITES:JSON.stringify([{host:'catalog.example.org',pathPrefixes:['/products/'],reuseApproved:true}])};
-const extracted=await extractCatalogProduct({website:'Other Website',url:'https://catalog.example.org/products/headphones'},{config,request:async()=>({bytes:Buffer.from(html),type:'text/html'})});assert.equal(extracted.product.model,'H1');assert.equal(extracted.image,null);assert.equal(extracted.product.product_image,'');
-assert.throws(()=>structuredProduct('<html>No metadata</html>','https://catalog.example.org/products/p'));
-for(const input of [{website:'Amazon',url:'https://www.amazon.in/dp/B012345678'},{website:'Flipkart',url:'https://www.flipkart.com/item/p/item123?pid=ABCDEFGHIJKL'},{website:'Other Website',url:'https://unsupported.example.org/product'}])await assert.rejects(()=>extractCatalogProduct(input,{config:{},request:async()=>{throw Error('No request should occur without approval');}}),/configured|approved/);
-await assert.rejects(()=>extractCatalogProduct({website:'Other Website',url:'https://catalog.example.org/products/headphones'},{config,request:async()=>{throw Error('Blocked by provider');}}),/Blocked/);
-console.log('PASS product URL/network restrictions, approved structured extraction, missing images/data, provider failures and unconfigured catalog fallback');
+const data={title:'My headphones',brand:'Manual brand',colour:'Blue',description:'My manually written description.',productData:{model:'H1'}};
+assert.equal(manualProductReference(data).product_url,'');
+for(const productLink of ['https://www.amazon.in/dp/B012345678','https://www.flipkart.com/item/p/item123?pid=ABCDEFGHIJKL','https://any-shopping-site.example/products/headphones']){
+ const reference=manualProductReference({...data,productLink});assert.equal(reference.product_name,data.title);assert.equal(reference.brand,data.brand);assert.equal(reference.model,'H1');assert.equal(reference.product_image,'');assert.equal(reference.product_url,canonicalProductURL(productLink));
+}
+const saved={...data,productData:{...manualProductReference({...data,productLink:'https://any-shopping-site.example/item'}),model:'H2'}};
+assert.equal(manualProductReference(saved).product_url,'https://any-shopping-site.example/item');
+assert.equal(manualProductReference({...saved,productLink:''}).product_url,'');
+assert.throws(()=>manualProductReference({...data,productLink:'javascript:alert(1)'}));
+console.log('PASS manual product references: optional links, any shop, editable model, existing links and unsafe URL rejection');
