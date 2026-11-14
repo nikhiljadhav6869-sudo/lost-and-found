@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
-import {approximateLocation,locationPoint,googleMapsUrl,distanceKm} from '../lib/location.ts';
-import {match} from '../.sites-runtime/test-entry.mjs';
+import {approximateLocation,locationPoint,googleMapsUrl,distanceKm,withinLocationRadius,locationMatchAllowed} from '../lib/location.ts';
+import {match,multimodal,MODEL_VERSION,api,auth,env} from '../.sites-runtime/test-entry.mjs';
+import {randomBytes} from 'node:crypto';
 assert.equal(approximateLocation(18.520430,73.856743),'Near 18.520, 73.857');
 assert.equal(approximateLocation(-33.856784,151.215297),'Near -33.857, 151.215');
 for(const coordinates of [[NaN,0],[0,Infinity],[91,0],[0,-181]])assert.throws(()=>approximateLocation(...coordinates));
@@ -10,12 +11,38 @@ assert.equal(new URL(googleMapsUrl('Near 18.520, 73.857')).searchParams.get('que
 assert.equal(new URL(googleMapsUrl('Library & Café #2')).searchParams.get('query'),'Library & Café #2');
 const a={id:'lost',type:'lost',title:'Green canvas bag',description:'Canvas bag with straps',category:'Bags',colour:'Green',brand:'Field',date:'2026-11-05',status:'Open',location:'Near 18.520, 73.857'};
 const b={...a,id:'found',type:'found',location:'Near 18.521, 73.858'};
-assert.ok(match(a,b).reasons.includes('Nearby map locations (within 2 km)'));
+assert.ok(match(a,b).reasons.includes('Nearby map locations (within 200 m)'));
 // Matching decimal fragments in different cities must not count as nearby places.
 const distant={...b,location:'Near 28.520, 83.857'};
-assert.equal(match(a,b).score-match(a,distant).score,10);
+assert.equal(match(a,distant).score,0);
 assert.ok(!match(a,distant).reasons.some(r=>/location/i.test(r)));
 assert.ok(!match(a,{...b,location:'Street 520 Library'}).reasons.some(r=>/location/i.test(r)));
 assert.ok(match({...a,location:'Central Library Pune'},{...b,location:'Pune Library'}).reasons.includes('Overlapping location'));
 assert.ok(distanceKm({latitude:0,longitude:179.999},{latitude:0,longitude:-179.999})<1);
 console.log('PASS rounded coordinates, safe Google Maps links and distance-based location matching');
+
+const originPoint={latitude:0,longitude:0};
+const pointAt=metres=>({latitude:metres/1000/6371*180/Math.PI,longitude:0});
+for(const metres of [0,199.9,200])assert.equal(withinLocationRadius(originPoint,pointAt(metres)),true);
+for(const metres of [200.1,201,2000])assert.equal(withinLocationRadius(originPoint,pointAt(metres)),false);
+const justOutside={...b,location:'Near 18.522, 73.857'};
+assert.equal(locationMatchAllowed(a.location,justOutside.location),false);
+assert.equal(match(a,justOutside).score,0);
+const embedding={model:MODEL_VERSION,revision:1,textVector:'[1,0,0]',imageVector:'[1,0,0]'};
+assert.equal(multimodal(a,justOutside,embedding,embedding).score,0,'Identical AI vectors must not bypass the radius');
+assert.ok(multimodal(a,b,embedding,embedding).score>75);
+assert.equal(locationMatchAllowed('Central library',b.location),true);
+const origin='http://localhost:3000';
+class Client{cookie='';async call(route,body){const module=route.startsWith('auth/')?auth:api;const method=body?'POST':'GET';const res=await module[method](new Request(origin+'/api/'+route,{method,headers:{origin,cookie:this.cookie,'content-type':'application/json'},body:body?JSON.stringify(body):undefined}));const value=await res.json();assert.equal(res.status,200,route+': '+JSON.stringify(value));for(const c of res.headers.getSetCookie())if(c.startsWith('better-auth.session_token='))this.cookie=c.split(';')[0];return value;}}
+const owner=new Client(),finder=new Client();
+for(const [client,email] of [[owner,'radius-owner@ui.test'],[finder,'radius-finder@ui.test']])await client.call('auth/sign-up/email',{name:'Radius tester',email,password:randomBytes(20).toString('hex')});
+const report=x=>({...x,privateDetails:'',images:[]});
+const lost=await owner.call('reports',report(a));
+const far=await finder.call('reports',report(justOutside));
+assert.equal((await env.DB.prepare('SELECT count(*) AS n FROM match_alerts').first()).n,0);
+assert.equal((await owner.call('reports/'+lost.id)).matches.length,0);
+const near=await finder.call('reports',report(b));
+const matches=(await owner.call('reports/'+lost.id)).matches;
+assert.ok(matches.some(m=>m.report.id===near.id));assert.ok(!matches.some(m=>m.report.id===far.id));
+assert.equal((await env.DB.prepare('SELECT count(*) AS n FROM match_alerts').first()).n,1);
+console.log('PASS inclusive 0–200 m boundary, AI cannot bypass radius, manual landmarks, live matches and notification gating');

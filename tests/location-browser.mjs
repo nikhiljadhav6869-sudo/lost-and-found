@@ -55,6 +55,9 @@ export async function checkLocation(browser,origin,sessionCookies) {
   await page.getByRole('button',{name:'Use dark theme'}).click();
   await page.getByRole('button',{name:'I found something',exact:true}).first().click();
   assert.equal(await input.inputValue(),'Manually corrected location');
+  await page.evaluate(()=>{navigator.geolocation.getCurrentPosition=success=>success({coords:{latitude:18.52043,longitude:73.856743,accuracy:300}});});
+  await dialog.getByRole('button',{name:'Use current location',exact:true}).click();
+  await dialog.getByText('Your phone returned an estimate wider than the 200 m matching radius.',{exact:false}).waitFor();
   await checkAccessibility(page,'location-dark');
   console.log('PASS lost/found location access only on click, Google Maps links, rounded draft recovery, permission errors and stale-result protection');
  }finally{await context.close();}

@@ -1,4 +1,4 @@
-import {locationPoint,distanceKm} from './location';
+import {locationPoint,withinLocationRadius,locationMatchAllowed} from './location';
 export type Matchable = {
     id: string;
     type: string;
@@ -20,7 +20,7 @@ export function matchDifferences(a:Matchable,b:Matchable){
     if(a.colour&&b.colour&&a.colour.toLowerCase()!==b.colour.toLowerCase())differences.push('Different listed colours');
     if(a.brand&&b.brand&&a.brand.toLowerCase()!==b.brand.toLowerCase())differences.push('Different listed brands');
     const ap=locationPoint(a.location),bp=locationPoint(b.location);
-    if(ap&&bp&&distanceKm(ap,bp)>2)differences.push('Map locations are more than 2 km apart');
+    if(ap&&bp&&!withinLocationRadius(ap,bp))differences.push('Map locations are outside the 200 m matching radius');
     const lost=a.type==='lost'?a:b,found=a.type==='found'?a:b;
     if(Date.parse(found.date)<Date.parse(lost.date))differences.push('Found date is before the reported loss date');
     return differences;
@@ -41,7 +41,7 @@ export function descriptionScore(a: Matchable, b: Matchable) {
     return Math.round(25 * overlap / Math.max(1, Math.min(at.size, bt.size)));
 }
 export function match(a: Matchable, b: Matchable) {
-    if (a.type === b.type || a.id === b.id || !['Open', 'Claim Pending'].includes(a.status) || !['Open', 'Claim Pending'].includes(b.status))
+    if (a.type === b.type || a.id === b.id || !['Open', 'Claim Pending'].includes(a.status) || !['Open', 'Claim Pending'].includes(b.status) || !locationMatchAllowed(a.location,b.location))
         return { score: 0, reasons: [] as string[] };
     let score = 0;
     const reasons: string[] = [];
@@ -69,9 +69,9 @@ export function match(a: Matchable, b: Matchable) {
     }
     const ap=locationPoint(a.location),bp=locationPoint(b.location);
     const al = tokens(a.location), bl = tokens(b.location);
-    if (ap && bp ? distanceKm(ap,bp)<=2 : !ap && !bp && [...al].some(t => bl.has(t))) {
+    if (ap && bp ? withinLocationRadius(ap,bp) : !ap && !bp && [...al].some(t => bl.has(t))) {
         score += 10;
-        reasons.push(ap && bp ? 'Nearby map locations (within 2 km)' : 'Overlapping location');
+        reasons.push(ap && bp ? 'Nearby map locations (within 200 m)' : 'Overlapping location');
     }
     if (!hasItemIdentity(a) || !hasItemIdentity(b)) score = Math.min(score, STRONG_MATCH_THRESHOLD);
     return { score, reasons };

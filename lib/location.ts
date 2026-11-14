@@ -1,4 +1,5 @@
 export type MapPoint = {latitude:number;longitude:number};
+export const LOCATION_MATCH_RADIUS_METRES = 200;
 export function approximateLocation(latitude:number,longitude:number) {
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || Math.abs(latitude)>90 || Math.abs(longitude)>180) throw Error('Invalid location');
     // Only the rounded public area is saved; the precise device fix is discarded.
@@ -19,4 +20,12 @@ export function distanceKm(a:MapPoint,b:MapPoint) {
     const rad=(n:number)=>n*Math.PI/180;
     const h=Math.sin(rad(b.latitude-a.latitude)/2)**2+Math.cos(rad(a.latitude))*Math.cos(rad(b.latitude))*Math.sin(rad(b.longitude-a.longitude)/2)**2;
     return 6371*2*Math.asin(Math.sqrt(Math.min(1,Math.max(0,h))));
+}
+export function withinLocationRadius(a:MapPoint,b:MapPoint) {
+    return distanceKm(a,b)*1000 <= LOCATION_MATCH_RADIUS_METRES+1e-6;
+}
+export function locationMatchAllowed(a:string,b:string) {
+    const first=locationPoint(a),second=locationPoint(b);
+    // Typed landmarks have no measured distance; retain their text-based matching.
+    return !first || !second || withinLocationRadius(first,second);
 }

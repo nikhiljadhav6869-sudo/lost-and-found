@@ -1,4 +1,5 @@
 import { match, hasItemIdentity, STRONG_MATCH_THRESHOLD, type Matchable } from './matching';
+import {locationMatchAllowed} from './location';
 export const MODEL_VERSION = 'minilm-751bff3_clip-d15189d_q8_v1';
 export const DEFAULT_WEIGHTS = { details: 0.4, text: 0.35, image: 0.25 };
 export type Embedding = { model: string; revision: number; textVector: string; imageVector: string | null };
@@ -19,7 +20,7 @@ export function rankingWeights(raw?: string) {
 export function multimodal(a: Matchable, b: Matchable, ea?: Embedding | null, eb?: Embedding | null, weights = DEFAULT_WEIGHTS) {
     const baseline = match(a, b);
     const result = { ...baseline, method: 'public-details', model: null as string | null };
-    if (a.type === b.type || a.id === b.id || !['Open','Claim Pending'].includes(a.status) || !['Open','Claim Pending'].includes(b.status)) return result;
+    if (a.type === b.type || a.id === b.id || !['Open','Claim Pending'].includes(a.status) || !['Open','Claim Pending'].includes(b.status) || !locationMatchAllowed(a.location,b.location)) return result;
     if (!ea || !eb || ea.model !== MODEL_VERSION || eb.model !== MODEL_VERSION) return result;
     const text = cosine(vector(ea.textVector), vector(eb.textVector));
     const image = cosine(vector(ea.imageVector), vector(eb.imageVector));
