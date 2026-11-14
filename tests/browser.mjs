@@ -90,7 +90,7 @@ try{
  for(const width of [375,390,768]){
    await page.setViewportSize({width,height:844});await page.goto(origin);
    await page.getByText('Real community reports',{exact:true}).waitFor();
-   await page.getByText('Browser draft backpack',{exact:true}).waitFor();
+   await page.getByRole('button',{name:'Browser draft backpack',exact:true}).waitFor();
    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Horizontal overflow at '+width);
    if(width===375)await checkAccessibility(page,'mobile');
    await page.screenshot({path:'.sites-runtime/browser/mobile-'+width+'.png',fullPage:true});
