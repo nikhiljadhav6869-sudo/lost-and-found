@@ -19,6 +19,8 @@ const checks=[
  ['Connection handling',['tests/request.mjs']],
  ['Backup storage',['tests/backup-storage.mjs']],
  ['Service monitoring',['tests/service-health.mjs']],
+ ['Email browser',['tests/email-browser.mjs']],
+ ['Email WebKit browser',['tests/email-browser.mjs','--webkit']],
  ['Browser workflows',['tests/browser.mjs']],
  ['WebKit workflows',['tests/browser.mjs','--webkit']]
 ];

@@ -1,3 +1,4 @@
+import {checkProductReporting} from './product-browser.mjs';
 import {checkDraftRecovery} from './draft-recovery.mjs';
 import {checkLocation} from './location-browser.mjs';
 import {checkReportOptions} from './report-options.mjs';
@@ -99,6 +100,7 @@ try{
  await context.setOffline(false);
  assert.deepEqual(errors,[]);
  console.log('PASS browser mobile-width layout, offline status and no uncaught page errors');
+ await checkProductReporting(page);
  await checkMobileReturn(browser, origin);
  await checkQuickFound(browser, origin);
  await checkDraftRecovery(browser, origin);

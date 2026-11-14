@@ -30,6 +30,8 @@ jobs:
       - run: npm run test:backup-storage
       - run: node tests/service-health.mjs
       - run: npx playwright install --with-deps chromium webkit
+      - run: node tests/email-browser.mjs
+      - run: node tests/email-browser.mjs --webkit
       - run: npm run test:college-browser
       - run: node tests/college-browser.mjs --webkit
       - run: npm run test:browser
