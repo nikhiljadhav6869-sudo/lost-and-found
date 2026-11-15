@@ -34,10 +34,20 @@ try{
  assert.equal((await context.cookies()).find(c=>c.name===initial.name)?.value,initial.value);
  assert.equal((await page.request.get(origin+'/api/dashboard')).status(),200);
  // A temporary server outage must not erase the persistent login.
- await page.route('**/api/me',r=>r.fulfill({status:503,contentType:'application/json',body:'{}'}));
+ // Simulate a failed fetch at the page boundary. WebKit's restored service worker
+ // can bypass Playwright routing, so request routing is not a reliable outage here.
+ await page.addInitScript(()=>{
+  window.testSessionOutage=true;
+  const request=window.fetch.bind(window);
+  window.fetch=(input,init)=>{
+   const url=new URL(typeof input==='string'?input:input instanceof URL?input.href:input.url,location.href);
+   if(window.testSessionOutage&&url.origin===location.origin&&url.pathname==='/api/me')return Promise.resolve(new Response('{}',{status:503,headers:{'Content-Type':'application/json'}}));
+   return request(input,init);
+  };
+ });
  await page.reload();await page.getByRole('button',{name:'Retry connection',exact:true}).first().waitFor();
  assert.equal((await context.cookies()).find(c=>c.name===initial.name)?.value,initial.value);
- await page.unroute('**/api/me');await page.getByRole('button',{name:'Retry connection',exact:true}).first().click();await page.locator('.avatar').waitFor();
+ await page.evaluate(()=>{window.testSessionOutage=false;});await page.getByRole('button',{name:'Retry connection',exact:true}).first().click();await page.locator('.avatar').waitFor();
  await page.locator('.avatar').click();await page.getByRole('button',{name:'Sign out',exact:true}).click();await page.getByRole('button',{name:'Sign in',exact:true}).waitFor();
  await context.close();context=null;
  page=await open();await page.goto(origin);await page.getByRole('button',{name:'Sign in',exact:true}).waitFor();
