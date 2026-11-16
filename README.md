@@ -88,6 +88,12 @@ The app has its own home-screen icon and opens in a standalone window on support
 
 An internet connection is required for accounts, reports, photos and messages. The service worker stores only a generic offline page with safe-return guidance. It does not cache API responses, private conversations, uploaded photos or the live application pages. Installing the app does not provide server backups or change a hosting plan's data-retention limits. New service-worker versions activate normally after older app windows close, without forcibly reloading forms.
 
+### Public policies and college operations
+
+The deployment publishes [Privacy](public/legal/privacy.html), [Terms](public/legal/terms.html) and [Data retention](public/legal/retention.html) pages. Their retention statements match the current maintenance and encrypted-backup configuration. They are operational templates, not legal advice: a college or public authority must obtain legal/privacy review, name its responsible organisation and replace the temporary contact before public launch.
+
+Staff should use the [College staff operations guide](docs/COLLEGE-STAFF-GUIDE.md) together with [maintenance](docs/MAINTENANCE.md) and [security](docs/SECURITY.md) guidance.
+
 ### Persistent data and configuration
 
 `npm run setup:env` generates a cryptographically random authentication secret in **`.dev.vars`**, which is ignored by Git. `.env.example` documents the settings. Do not commit secrets or change the session secret casually.
